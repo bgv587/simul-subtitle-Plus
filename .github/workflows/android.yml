@@ -94,7 +94,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # 应用内更新：发一个滚动的 release（tag 固定 diy-latest），APK 和 update.json 每次覆盖。
+      # 应用内更新：发一个滚动的 release（tag 固定 plus-latest），APK 和 update.json 每次覆盖。
       # App 读 releases/latest/download/update.json，比对 versionCode，下载后校验 size + sha256 再装。
       - name: Publish in-app update release
         if: github.ref == 'refs/heads/main'
@@ -105,18 +105,18 @@ jobs:
           echo "APK: $APK"
           SIZE=$(stat -c%s "$APK")
           SHA=$(sha256sum "$APK" | awk '{print $1}')
-          NAME="DIY$CI_VERSION_CODE"
+          NAME="Plus$CI_VERSION_CODE"
           MB=$(( SIZE / 1048576 ))
           MSG=$(git log -1 --pretty=%s | tr -d '"')
           BODY=$(git log -1 --pretty=%b | sed '/^$/d' | head -6 | tr -d '"')
           printf '{"versionCode":%s,"versionName":"%s","notes":"%s","apkUrl":"https://github.com/%s/releases/latest/download/app-debug.apk","size":%s,"sha256":"%s","commit":"%s"}\n' \
             "$CI_VERSION_CODE" "$NAME" "$MSG" "$GITHUB_REPOSITORY" "$SIZE" "$SHA" "$GITHUB_SHA" > update.json
           cat update.json
-          gh release view diy-latest >/dev/null 2>&1 \
-            || gh release create diy-latest --title "最新构建" --notes "首次创建" --latest
-          gh release upload diy-latest "$APK#app-debug.apk" update.json --clobber
-          # 把 diy-latest 移到这次提交：否则 release 页显示的 commit 还停在第一次创建时
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/diy-latest" -f "sha=$GITHUB_SHA" -F "force=true" >/dev/null
+          gh release view plus-latest >/dev/null 2>&1 \
+            || gh release create plus-latest --title "最新构建" --notes "首次创建" --latest
+          gh release upload plus-latest "$APK#app-debug.apk" update.json --clobber
+          # 把 plus-latest 移到这次提交：否则 release 页显示的 commit 还停在第一次创建时
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/plus-latest" -f "sha=$GITHUB_SHA" -F "force=true" >/dev/null
           {
             echo "**最新版本：$NAME**（versionCode $CI_VERSION_CODE，构建 #$CI_VERSION_CODE）"
             echo ""
@@ -143,8 +143,14 @@ jobs:
             echo '```'
             echo ""
             echo "每个版本的改动见 [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/main/CHANGELOG.md)。"
+            echo ""
+            echo "### 许可"
+            echo ""
+            echo "本项目基于 [KorenKrita/simul-subtitle](https://github.com/KorenKrita/simul-subtitle) 修改，沿用 [MIT 许可证](https://github.com/$GITHUB_REPOSITORY/blob/main/LICENSE)。"
+            echo ""
+            echo "内置的语音识别、静音检测模型和第三方库（SenseVoice、Silero VAD、sherpa-onnx 等）仍遵循各自的许可证，以随包附带的许可证文件为准。"
           } > notes.md
-          gh release edit diy-latest --title "$NAME" --notes-file notes.md --latest
+          gh release edit plus-latest --title "$NAME" --notes-file notes.md --latest
 
       # 每个版本都打 tag（只占几个字节，方便 checkout 出当时的代码）；
       # 但 APK 只在明确要求时才单独存一份——提交信息带 [keep]，或手动运行并勾选「保留」。
@@ -154,7 +160,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="vDIY$CI_VERSION_CODE"
+          TAG="vPlus$CI_VERSION_CODE"
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
             echo "tag $TAG 已存在"
           else
@@ -182,13 +188,13 @@ jobs:
               echo ""
               echo "#### Windows（ZIP）"
               echo ""
-              echo "- [Windows-SimulSub-x64.zip](https://github.com/$GITHUB_REPOSITORY/releases/download/diy-latest/Windows-SimulSub-x64.zip)（同一时期构建的 Windows 包）"
+              echo "- [Windows-SimulSub-x64.zip](https://github.com/$GITHUB_REPOSITORY/releases/download/plus-latest/Windows-SimulSub-x64.zip)（同一时期构建的 Windows 包）"
             } > tag-notes.md
             gh release create "$TAG" "$APK#app-debug.apk" --title "$TAG" --notes-file tag-notes.md
             echo "已创建版本 release: $TAG"
           fi
           # 关键：把 latest 重新指回滚动 release，否则应用内更新会读到没有 update.json 的版本页
-          gh release edit diy-latest --latest
+          gh release edit plus-latest --latest
 
       # ── 可选：要出签名 release 包时，在仓库 Secrets 配好下面四个再看这段 ──
       # - name: Sign release

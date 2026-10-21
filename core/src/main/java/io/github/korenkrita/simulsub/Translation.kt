@@ -534,6 +534,17 @@ data class LlmProfile(val id: String, val name: String) {
 }
 
 /**
+ * B 站公开的 Index 翻译接口：OpenAI 兼容、不需要 key。公网防火墙会拦下没有 [USER_AGENT] 的请求；免费服务没有
+ * 服务保障，可能随时限流、停用或调整规则。
+ */
+object BilibiliIndex {
+    const val URL = "https://index-translate.bilibili.com/v1"
+    const val MODEL = "Index-Translate-35B-A3B"
+    const val USER_AGENT = "Index-Translate-Client/1.0"
+    const val PROFILE_NAME = "B站 Index 免费"
+}
+
+/**
  * The user's LLM API as saved: chat URL (see [ByokTranslator.chatUrl]), model, key ("" = none: no Authorization header,
  * for a free service), the User-Agent ("" = [ByokTranslator.defaultUserAgent]) and extra request headers. A data class:
  * a session compares the one it uses with the one saved last.

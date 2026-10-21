@@ -50,7 +50,7 @@ jobs:
           name: SimulSub-windows-x64
           path: tools/win-app/build/zip/
 
-      # 发布：把 zip 挂到和安卓同一个滚动 release（diy-latest）的 Assets 里。
+      # 发布：把 zip 挂到和安卓同一个滚动 release（plus-latest）的 Assets 里。
       # 只保留这一条 release：正文由安卓流水线写（版本号、更新内容、双端下载链接），Windows 这边只挂资产，
       # 不再另建 windows-latest / win-first，避免下载页分裂成好几条。
       - name: 发布 Windows 包
@@ -64,13 +64,11 @@ jobs:
           echo "zip: $ZIP ($MB MB)"
           # 和安卓在同一个下载页：文件名加 Windows 前缀，Assets 里一眼分得清
           # （gh 的 file#label 只改显示标签、不改资产名，所以先把文件复制成目标名）
-          if gh release view diy-latest >/dev/null 2>&1; then
-            mkdir -p dist && cp "$ZIP" "dist/Windows-SimulSub-x64.zip"
-            gh release upload diy-latest "dist/Windows-SimulSub-x64.zip" --clobber
-            gh release delete-asset diy-latest "$NAME" --yes >/dev/null 2>&1 || true
-            echo "已挂到 diy-latest 的 Assets"
-          else
-            echo "diy-latest 还没建（安卓那边会建），跳过"
-          fi
-          # latest 必须留在安卓那条滚动 release 上，否则应用内更新会读到没有 update.json 的 release
-          gh release edit diy-latest --latest
+          # 两个流水线同时跑，谁先到谁建：已存在时 create 失败，忽略就行
+          gh release create plus-latest --title "最新构建" --notes "首次创建" --latest >/dev/null 2>&1 || true
+          mkdir -p dist && cp "$ZIP" "dist/Windows-SimulSub-x64.zip"
+          gh release upload plus-latest "dist/Windows-SimulSub-x64.zip" --clobber
+          gh release delete-asset plus-latest "$NAME" --yes >/dev/null 2>&1 || true
+          echo "已挂到 plus-latest 的 Assets"
+          # latest 必须留在这条滚动 release 上，否则应用内更新会读到别的版本页
+          gh release edit plus-latest --latest

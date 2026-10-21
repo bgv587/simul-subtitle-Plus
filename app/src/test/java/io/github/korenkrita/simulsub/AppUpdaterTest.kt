@@ -16,6 +16,13 @@ class AppUpdaterTest {
         assertEquals(release.sha256, UpdateRelease.parse(JSONObject(release.json()).put("sha256", "A".repeat(64)).toString()).sha256)
     }
 
+    // DIY: 本 fork 的版本名是 Plus<构建号>，已经发出去的 DIY<构建号> 和上游点分格式都要能解析
+    @Test fun forkRollingAndUpstreamVersionNamesAreAccepted() {
+        for (name in listOf("Plus1002", "DIY1064", "1.0.7-diy.1028", "0.4")) {
+            assertEquals(name, UpdateRelease.parse(JSONObject(release.json()).put("versionName", name).toString()).versionName)
+        }
+    }
+
     @Test fun onlyHigherVersionCodeCounts() {
         assertTrue(release.isNewer(3))
         assertFalse(release.isNewer(4))
@@ -57,7 +64,8 @@ class AppUpdaterTest {
     @Test fun rejectIncompleteUnsafeOrInconsistentManifest() {
         for ((key, value) in listOf(
             "versionCode" to 0, "versionCode" to 4.5, "versionCode" to 2147483648L,
-            "versionName" to "../0.4", "versionName" to "0.4-beta", "versionName" to "0.5",
+            "versionName" to "../0.4", "versionName" to "Plus", "versionName" to "plus1002",
+            "versionName" to "Plus1002<script>",
             "size" to 0, "size" to 200_000_001L, "size" to 1.5,
             "sha256" to "bad", "apkUrl" to "http://github.com/file.apk",
             "apkUrl" to "https://example.com/file.apk",

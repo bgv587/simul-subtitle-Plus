@@ -171,6 +171,7 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
             current = null; runningState.value = false; endedState.value = false
             s.prefs.unlisten(s.prefListener)
             s.session.stop()
+            MeetingTranscript.end()
         }
     }
 }

@@ -59,7 +59,7 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
 private val prefs get() = Prefs.prefs
-private const val REPO = "https://github.com/J1nxi-youmi/simul-subtitle-diy"
+private const val REPO = "https://github.com/bgv587/simul-subtitle-Plus"
 
 private fun open(url: String) = runCatching { Desktop.getDesktop().browse(URI(url)) }
 private fun reveal(f: File) = runCatching {
@@ -69,6 +69,7 @@ private fun sizeText(b: Long) = if (b >= 1e6) "%.1f MB".format(b / 1e6) else "%.
 
 private val EXPORT_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 private val FILE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
+private val SEGMENT_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
 
 /** A name Windows accepts, with the meeting's date so exports of the same title do not collide. */
 private fun exportFileName(title: String, at: LocalDateTime, extension: String): String {
@@ -706,6 +707,28 @@ private fun Byok(running: Boolean) {
             Btn("删除", danger = true, enabled = !busy) { byokAdvanced.value = null; confirmDel = true }
         }
     }
+    fun useBilibili() {
+        val p = prefs.byokProfiles.firstOrNull { it.name == BilibiliIndex.PROFILE_NAME }
+        if (p == null && prefs.byokProfiles.size >= LlmProfile.MAX_PROFILES) {
+            byokResult.value = "⚠ 配置已经有 ${LlmProfile.MAX_PROFILES} 个，先删一个再加。"
+            return
+        }
+        val target = p ?: prefs.addByokProfile(BilibiliIndex.PROFILE_NAME)
+        if (target.id != prefs.byokProfile.id) prefs.useByokProfile(target)
+        if (!prefs.saveByok(BilibiliIndex.URL, BilibiliIndex.MODEL, "", BilibiliIndex.USER_AGENT, emptyList())) {
+            byokResult.value = "⚠ 配置没能存进加密文件，请再试一次。"
+            return
+        }
+        naming = null; confirmDel = false
+        byokDraft.value = ByokDraft(); byokAdvanced.value = null
+        byokResult.value = "已切换到「${BilibiliIndex.PROFILE_NAME}」：不用填 key，字幕从下一句开始用它翻译。" +
+            "这是 B 站公开的免费接口，没有服务保障，可能限流、停用或改规则；不要发送敏感内容。"
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextBtn("使用 B 站 Index 免费翻译", enabled = !busy) { useBilibili() }
+        Spacer(Modifier.width(8.dp))
+        Text("无需 key；免费服务没有保障", fontSize = 12.sp, color = C.muted)
+    }
     val testing = byokTest.value != null
     naming?.let { rename ->
         Label(if (rename) "重命名配置" else "新建配置")
@@ -843,15 +866,26 @@ private fun LogsTab() {
     LaunchedEffect(Unit) { while (true) { delay(3_000); tick++ } }
     tick.let { }
     Group("导出会议记录") {
-        val snap = MeetingTranscript.snapshot()
-        if (snap == null) {
-            Hint("还没有字幕记录。开始一次字幕后，说完的句子会记在这里；结束或进行中都可以导出。")
+        val sessions = MeetingTranscript.sessions()
+        if (sessions.isEmpty()) {
+            Hint("还没有字幕记录。每次开始字幕会记一段，停止后再开始就是新的一段；说完的句子会随时记在这里，结束或进行中都可以导出。")
         } else {
-            var title by remember(snap.startedAt) { mutableStateOf(snap.suggestedTitle) }
-            var exportMsg by remember(snap.startedAt) { mutableStateOf<String?>(null) }
-            var exported by remember(snap.startedAt) { mutableStateOf<File?>(null) }
+            var picked by remember { mutableStateOf<Long?>(null) }
+            // the newest segment, unless the user picked an older one from the list
+            val snap = picked?.let { id -> sessions.firstOrNull { it.id == id } } ?: sessions.last()
+            if (sessions.size > 1) {
+                Label("会议记录")
+                val labels = sessions.mapIndexed { i, s ->
+                    "第 ${i + 1} 段 · " + s.startedAt.format(SEGMENT_TIME) + " · " + s.lines.size + " 句" +
+                        if (s.active) " · 记录中" else ""
+                }
+                Dropdown(labels, sessions.indexOfFirst { it.id == snap.id }.coerceAtLeast(0)) { picked = sessions[it].id }
+            }
+            var title by remember(snap.id) { mutableStateOf(snap.suggestedTitle) }
+            var exportMsg by remember(snap.id) { mutableStateOf<String?>(null) }
+            var exported by remember(snap.id) { mutableStateOf<File?>(null) }
             val formats = TranscriptFormat.entries
-            Text((if (CaptionService.running) "本次字幕（还在记录）" else "上一次字幕") + " · " +
+            Text((if (snap.active) "这一段还在记录" else "这一段已结束") + " · " +
                 snap.startedAt.format(EXPORT_TIME) + " · " + TranscriptExport.duration(snap.durationMs) + " · " + snap.lines.size + " 句",
                 fontSize = 14.sp)
             Label("会议标题")
@@ -876,8 +910,9 @@ private fun LogsTab() {
                 exported?.let { f -> TextBtn("在文件夹中显示") { reveal(f) } }
             }
             exportMsg?.let { Hint(it, if (exported == null) C.err else C.ok) }
-            if (snap.lines.isEmpty()) Hint(if (CaptionService.running) "还没说完一句；说完的句子会随时出现在这里。" else "这次没有可导出的句子。")
-            Hint("Markdown 适合整理会议纪要；JSON 带每句的毫秒时间，适合再做分析；SRT / VTT 可以导入剪辑和字幕软件。")
+            if (snap.lines.isEmpty()) Hint(if (snap.active) "还没说完一句；说完的句子会随时出现在这里。" else "这一段没有可导出的句子。")
+            Hint("每次开始字幕算新的一段，停止后再开始不会覆盖这一段；上面的下拉里可以选之前的某一段分别导出。\n" +
+                "Markdown 适合整理会议纪要；JSON 带每句的毫秒时间，适合再做分析；SRT / VTT 可以导入剪辑和字幕软件。")
         }
     }
     Group("使用记录") {
@@ -937,7 +972,7 @@ private fun AboutSection() {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Btn(if (update.value is Update.Checking) "检查中…" else "检查更新", enabled = update.value !is Update.Checking,
                 modifier = Modifier.weight(1f)) { checkNow(manual = true) }
-            Btn("打开下载页", modifier = Modifier.weight(1f)) { open("$REPO/releases/tag/diy-latest") }
+            Btn("打开下载页", modifier = Modifier.weight(1f)) { open("$REPO/releases/tag/plus-latest") }
         }
         Hint("桌面端不会自动安装新版：点「打开下载页」下载 Windows-SimulSub-x64.zip，退出本程序后解压替换即可，设置和 key 都保留。GitHub 项目主页：$REPO")
         when (val u = update.value) {
@@ -986,7 +1021,8 @@ private fun fetchRelease(): Pair<Release?, String?> {
                 val j = JSONObject(String(text))
                 val code = j.get("versionCode").toString().toInt()
                 val name = j.getString("versionName")
-                require(code > 0 && name.matches(Regex("[0-9]+(?:\\.[0-9]+){1,3}(?:-[A-Za-z0-9._-]{1,24})?")))
+                // 本 fork 的版本名是「Plus + 构建号」（如 Plus1002），旧的 DIYxxx 和上游的点分格式都收
+                require(code > 0 && name.matches(Regex("[A-Za-z]*[0-9]+(?:\\.[0-9]+){0,3}(?:-[A-Za-z0-9._-]{1,24})?")))
                 return Release(code, name, j.optString("notes").take(8_000), j.optString("commit")) to null
             }
         } catch (e: Exception) { why = e.message ?: e.javaClass.simpleName }
@@ -1019,7 +1055,7 @@ private fun UpdateBox(r: Release) {
         Text("线上有新版本 ${r.name}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
         if (r.notes.isNotBlank()) Text(r.notes, fontSize = 13.sp, lineHeight = 20.sp, color = C.text2, modifier = Modifier.padding(top = 6.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Btn("打开下载页", primary = true) { open("$REPO/releases/tag/diy-latest") }
+            Btn("打开下载页", primary = true) { open("$REPO/releases/tag/plus-latest") }
         }
         Hint("下载页里「Windows-SimulSub-x64.zip」是 Windows 版。先退出本程序，解压后用新的文件夹替换旧的，设置会保留（设置存在 %APPDATA%\\SimulSub，不随程序目录走）。")
     }

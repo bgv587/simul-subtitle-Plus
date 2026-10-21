@@ -5,7 +5,7 @@
 
 ## 下载
 
-两个平台的文件挂在**同一个页面**的 Assets 里（[最新构建](../../releases/tag/diy-latest)），按文件名区分：
+两个平台的文件挂在**同一个页面**的 Assets 里（[最新构建](../../releases/tag/plus-latest)），按文件名区分：
 
 ### 安卓 —— `app-debug.apk`（约 251 MB）
 
@@ -80,13 +80,13 @@ Windows 上因为 CPU 更强，实测端到端中位 **554 ms**（识别 55 ms�
 
 | 工作流 | 产物 | 发布位置 |
 |---|---|---|
-| `android.yml` | `app-debug.apk` | 滚动 tag `diy-latest`（应用内更新读它）|
-| `windows.yml` | `Windows-SimulSub-x64.zip`（挂在同一个 `diy-latest` 的 Assets 里） | 滚动 tag `diy-latest` |
+| `android.yml` | `app-debug.apk` | 滚动 tag `plus-latest`（应用内更新读它）|
+| `windows.yml` | `Windows-SimulSub-x64.zip`（挂在同一个 `plus-latest` 的 Assets 里） | 滚动 tag `plus-latest` |
 
 - 两端功能改动请同时改到位，否则同步更新没意义
 - 安卓签名固定在 Actions 缓存里，覆盖安装不丢配置
-- 版本名是 `DIY` + `versionCode`（如 `DIY1064`），`versionCode` 取 `1000 + 构建序号`，应用内更新靠它判断有没有新版本
-- 每个版本都会打个 tag（`vDIYNNNN`），但**只有明确要求的版本才留 APK**：
+- 版本名是 `Plus` + `versionCode`（如 `Plus1002`），`versionCode` 取 `1000 + 本仓库的构建序号`，应用内更新靠它判断有没有新版本
+- 每个版本都会打个 tag（`vPlusNNNN`），但**只有明确要求的版本才留 APK**：
   - 提交信息**末尾**带 `[keep]`，或
   - 手动 Run workflow 时勾选「保留」
   否则只更新滚动 release，磁盘不会一直涨

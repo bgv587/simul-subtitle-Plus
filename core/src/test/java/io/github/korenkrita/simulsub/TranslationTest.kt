@@ -18,6 +18,15 @@ class TranslationTest {
     }
 
     @Test
+    fun theBilibiliPresetNeedsNoKeyAndSendsItsUserAgent() {
+        val chat = ByokTranslator.chatUrl(BilibiliIndex.URL).second
+        assertEquals("https://index-translate.bilibili.com/v1/chat/completions", chat)
+        val headers = ByokService(chat!!, BilibiliIndex.MODEL, "", BilibiliIndex.USER_AGENT).requestHeaders()
+        assertEquals(BilibiliIndex.USER_AGENT, headers["User-Agent"])
+        assertNull(headers["Authorization"])
+    }
+
+    @Test
     fun aNoteInTheTranslationIsNeverDropped() {
         // the source text itself carries a note; its characters also appear in the scene background
         val text = "下次直播见\n（注：这是B站直播）"

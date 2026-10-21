@@ -58,7 +58,7 @@ internal data class UpdateRelease(
 
     companion object {
         // DIY: 指向自己的 fork——应用内更新只能装同签名的包，上游 release 的签名对不上。
-        const val REPO = "https://github.com/J1nxi-youmi/simul-subtitle-diy"
+        const val REPO = "https://github.com/bgv587/simul-subtitle-Plus"
         const val LATEST = "$REPO/releases/latest/download/update.json"
         const val REMIND_INTERVAL = 24 * 60 * 60 * 1000L
         const val MAX_MANIFEST = 128 * 1024
@@ -100,9 +100,9 @@ internal data class UpdateRelease(
             val size = j.get("size").toString().toLong()
             val hash = j.getString("sha256").lowercase()
             val url = j.getString("apkUrl")
-            // DIY: 版本名是 "DIY" + versionCode（如 DIY1064）；旧版本的 1.0.7-diy.1028 仍要能解析（已发布的清单）。
-            // 上游要求纯 1.2.3 点分格式，这里两种都接受，其余一律拒绝。
-            require(code > 0 && name.matches(Regex("(?:DIY[0-9]+|[0-9]+(?:\\.[0-9]+){1,3})(?:-[A-Za-z0-9._-]{1,24})?")))
+            // DIY: 版本名是「Plus + versionCode」（如 Plus1002）；已发布清单里的 DIY1064 和旧的 1.0.7-diy.1028
+            // 都还要能解析（升级中的老版本读的是同一份清单校验规则）。上游要求纯 1.2.3 点分格式，这里都接受，其余拒绝。
+            require(code > 0 && name.matches(Regex("(?:(?:Plus|DIY)[0-9]+|[0-9]+(?:\\.[0-9]+){1,3})(?:-[A-Za-z0-9._-]{1,24})?")))
             // DIY: 语音模型打进包后 APK 有 325 MB，上游的 200 MB 上限不够
             require(size in 1..MAX_APK_BYTES && hash.matches(Regex("[0-9a-f]{64}")))
             // DIY: 只认本仓库自己的 release 资产（任意站点一律拒绝，防止被镜像投毒）。

@@ -934,6 +934,24 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = (8 * dpx).toInt() })
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (6 * dpx).toInt() })
+        box.addView(MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            text = "使用 B 站 Index 免费翻译（无需 key）"
+            textSize = 15f; isAllCaps = false; isEnabled = !testing
+            setOnClickListener {
+                val existing = prefs.byokProfiles.firstOrNull { it.name == BilibiliIndex.PROFILE_NAME }
+                if (existing == null && prefs.byokProfiles.size >= LlmProfile.MAX_PROFILES) {
+                    byokResult = "⚠ 配置已经有 ${LlmProfile.MAX_PROFILES} 个，先删一个再加。"
+                } else {
+                    val target = existing ?: prefs.addByokProfile(BilibiliIndex.PROFILE_NAME)
+                    if (target.id != prefs.byokProfile.id) prefs.useByokProfile(target)
+                    prefs.saveByok(BilibiliIndex.URL, BilibiliIndex.MODEL, "", BilibiliIndex.USER_AGENT, emptyList())
+                    byokDraft = null
+                    byokResult = "已切换到「${BilibiliIndex.PROFILE_NAME}」：不用填 key，字幕从下一句开始用它翻译。" +
+                        "这是 B 站公开的免费接口，没有服务保障，可能限流、停用或改规则；不要发送敏感内容。"
+                }
+                renderTranslate()
+            }
+        })
         box.addView(hint("填一个 OpenAI 兼容接口的 LLM 服务来翻译字幕，只发送识别出的文字，不发送声音。\n模型要求：必须能关闭思考（深度思考 / reasoning），否则每句都要等很久；尽量选回复速度快的模型，字幕才跟得上。"))
         fun field(title: String, value: String, hintText: String, password: Boolean = false): android.widget.EditText {
             box.addView(label(title))
@@ -1417,7 +1435,7 @@ class MainActivity : Activity() {
         const val LOGS_BEFORE_SCROLL = 5
         /** where the project lives (set by the author; the repository may not be public yet) */
         // DIY: 指向自己的 fork——上游 release 的签名和本包不一致，应用内更新装不上
-        const val REPO_URL = "https://github.com/J1nxi-youmi/simul-subtitle-diy"
+        const val REPO_URL = "https://github.com/bgv587/simul-subtitle-Plus"
         /** Settings categories: the list shown for each, and its tab label. */
         val TABS: List<Pair<Int, String>> = listOf(R.id.tabCaption to "字幕", R.id.tabTranslate to "翻译", R.id.tabPage to "页面", R.id.tabRecords to "记录")
     }

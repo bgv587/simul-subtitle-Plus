@@ -15,8 +15,8 @@ android {
         // 两边都按「赋值号后面紧跟一对引号」的形式找。所以下面只能有一处这种形态——
         // CI 的覆盖那一行故意不以引号开头，也不会被它们当成第二个版本号。
         versionCode = 27
-        versionName = "DIY"
-        val plainName = "DIY"
+        versionName = "Plus"
+        val plainName = "Plus"
         val ciCode = System.getenv("CI_VERSION_CODE")?.toIntOrNull()
         if (ciCode != null) {
             versionCode = ciCode

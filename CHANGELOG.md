@@ -1,11 +1,28 @@
 # 版本记录
 
-`versionCode` = **1000 + GitHub Actions 构建序号**，版本名是 `DIY` + `versionCode`（如 `DIY1064`），只有构建成功并发布到 Releases 的版本才有编号。
-每个版本都打了 git tag（如 `vDIY1064`；`vDIY1033` 之前的旧 tag 仍是 `v1.0.7-diy.NNNN`），可以 `git checkout` 出当时的代码。
+`versionCode` = **1000 + GitHub Actions 构建序号**，版本名是 `Plus` + `versionCode`（如 `Plus1002`；`Plus1002` 之前的版本叫 `DIY1001`、`DIY1064` 等），只有构建成功并发布到 Releases 的版本才有编号。
+每个版本都打了 git tag（如 `vPlus1002`；更早的是 `vDIYNNNN`，`vDIY1033` 之前仍是 `v1.0.7-diy.NNNN`），可以 `git checkout` 出当时的代码。
+本仓库（`bgv587/simul-subtitle-Plus`）的构建序号从 1 开始，和上游 fork 的同号版本不是同一个包；`DIY1066` 及更早是上游 fork 的记录。
 
 按时间倒序。标注：**加** = 新增功能，**改** = 行为或界面调整，**删** = 移除，**修** = 修 bug。
 
 ---
+
+## Plus1002 — 10-21 18:10
+- **加** 会议记录按「开始字幕 → 停止字幕」分段：停止不再覆盖上一次的记录，本次运行保留最近 50 段，记录页多了段落选择，可以选「第 N 段」单独导出
+- **加** 内置 B 站 Index 免费翻译接口：翻译设置里一键新建 / 切换到「B站 Index 免费」配置（`https://index-translate.bilibili.com/v1` + `Index-Translate-35B-A3B`，不需要 key，自动带必需的 `User-Agent: Index-Translate-Client/1.0`）；桌面端和安卓端各一个入口，不动已有配置
+- **改** 发布地址、应用内更新源和 App 里的 GitHub 链接全部指向本仓库：之前还指向上一个 fork，会提示下载别人签名的包，装了必然失败
+- **改** 版本名改成 `Plus` + 构建序号，滚动 release 的 tag 改成 `plus-latest`，版本 tag 改成 `vPlusNNNN`；更新清单的版本名校验同时接受 `DIYxxxx` 和旧的 `1.0.7-diy.NNNN`，老版本照常检查更新
+- **改** CI 生成的更新说明固定带「许可」段：本项目沿用 MIT，内置模型和第三方库各自的许可证不变
+- **修** 桌面端「检查更新」读不到本仓库的清单：版本名校验只认 `1.2.3` 这种点分格式，`DIY1001` 直接被拒，永远报「格式不对」
+- **测** core + desktop 共 247 个用例全部通过（新增分段与 B 站接口两条）
+
+## DIY1001 — 10-21 17:05
+- **加** 字幕字体可选（桌面端）：设置 › 字幕里选系统字体、随包识别到的中英日字体，或自选 `ttf` / `otf` / `ttc`；文件读不了就回退系统字体
+- **加** 会议记录导出：按句收集定稿并按 segment 去重，可导出 Markdown / 纯文本 / SRT / VTT / JSON，可选是否包含原文、时间、会议信息
+- **加** 桌面端 ASR 后端可切换（SenseVoice / Qwen3-ASR 0.6B，模型用 `tools/fetch-qwen3.sh` 单独取）
+- **修** 启动时按路径预载 `onnxruntime.dll`，不再被系统目录里的同名 DLL 顶掉
+- **修** 已安装字体的查找用的是文件名而不是显示名，之前每个内置字体都取不到文件、静默回退系统字体
 
 ## DIY1066 — 10-19 22:50
 - **修** 被截断的翻译流不再当成完整译文上屏：普通端点只认以 `[DONE]` 闭合的流，某个 chunk 带 `finish_reason:"stop"` 不算流结束（此前会把半句话当整句显示）。百炼（qwen-mt）本来就不发 `[DONE]`，仍按 `stop` 帧接受，这条按 `qwenMt` 区分，不影响现有配置
