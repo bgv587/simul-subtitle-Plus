@@ -131,6 +131,7 @@ fun CaptionCard(
     corners: (@Composable androidx.compose.foundation.layout.BoxScope.(Color) -> Unit)? = null,
 ) {
     val p = palette(prefs.palette)
+    val family = CaptionFonts.family(prefs.captionFont)
     val size = prefs.textSp.coerceIn(MIN_SP, MAX_SP) * SP_SCALE
     val alpha = prefs.bgAlpha
     val bg = Color(p.bg).copy(alpha = alpha)
@@ -189,7 +190,7 @@ fun CaptionCard(
             val area = if (fixedHeight > 0f) Modifier.height(fixedHeight.dp) else Modifier.heightIn(max = maxHeight.dp)
             if (lines.isNotEmpty() || fixedHeight > 0f) Box(Modifier.fillMaxWidth().then(area).clipToBounds().wrapContentHeight(Alignment.Bottom, unbounded = true)) {
                 Text(text, color = Color(p.zh), fontSize = size.sp, lineHeight = (size * 1.3f).sp, fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().graphicsLayer { translationY = slide },
+                    fontFamily = family, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().graphicsLayer { translationY = slide },
                     style = androidx.compose.ui.text.TextStyle(shadow = shadow), onTextLayout = onTextLayout)
             }
             diag?.let { Text(it, color = Color(p.stats), fontSize = 15.sp, textAlign = TextAlign.Center,

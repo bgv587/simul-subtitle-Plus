@@ -18,6 +18,9 @@ val appCode = Regex("versionCode = (\\d+)").find(appGradle)!!.groupValues[1]
 // tools/win-app's output: windows-x64 (the native libraries, sysaudio and the models) and sherpa-jvm.jar
 val winDist = rootProject.layout.projectDirectory.dir("tools/win-app/build/resources/windows-x64")
 val dist = (findProperty("simulsub.dist") as String?)?.let { file(it) }
+// build.sh puts the DLLs at the root; older layouts used native/ (find one, so both run from the repo)
+val nativeDir = listOf(winDist.asFile, winDist.dir("native").asFile)
+    .firstOrNull { it.resolve("sherpa-onnx-jni.dll").isFile } ?: winDist.asFile
 
 dependencies {
     implementation(project(":core"))
@@ -32,6 +35,19 @@ dependencies {
     testImplementation("org.json:json:20240303")
 }
 
+/** Same VAD and Segmenter as the app, over a WAV: CER against a plain-text reference and RTF per backend. */
+tasks.register<JavaExec>("asrBench") {
+    group = "verification"
+    description = "Compare SenseVoice and Qwen3-ASR on a WAV (CER/RTF)"
+    mainClass.set("io.github.korenkrita.simulsub.AsrBenchKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    systemProperty("java.library.path", nativeDir.path)
+    systemProperty("simulsub.models", rootProject.layout.projectDirectory.dir("models").asFile.path)
+    // the recognized text is UTF-8; JDK 17 would otherwise print it in the console's code page
+    systemProperty("file.encoding", "UTF-8")
+    (findProperty("benchArgs") as String?)?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }?.let { args = it }
+}
+
 compose.desktop {
     application {
         mainClass = "io.github.korenkrita.simulsub.MainKt"
@@ -39,7 +55,7 @@ compose.desktop {
         // packaged, the native libraries and sysaudio sit in compose.application.resources.dir (see Main.kt)
         if (dist == null) {
             jvmArgs += listOf(
-                "-Djava.library.path=${winDist.dir("native").asFile}",
+                "-Djava.library.path=${nativeDir}",
                 "-Dsimulsub.root=${rootProject.projectDir}",
                 // from the repo: the models ./setup.sh downloaded, a data folder of its own
                 "-Dsimulsub.models=${rootProject.projectDir}/models",

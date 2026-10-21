@@ -25,6 +25,8 @@ fetch "$GH/sherpa-onnx-native-lib-win-x64-$SHERPA.jar" "$W/sherpa-win.jar"
 "$ROOT/setup.sh" >/dev/null
 mkdir -p "$R/models"
 cp -R "$ROOT/models/asr_sv" "$ROOT/models/vad" "$R/models/"
+# Qwen3-ASR is optional (tools/fetch-qwen3.sh, ~940 MiB); it makes the zip that much bigger
+if [ -d "$ROOT/models/asr_qwen3" ]; then cp -R "$ROOT/models/asr_qwen3" "$R/models/"; fi
 
 # 3. the audio helper (static C runtime: nothing else to install). MSVC's own folder first on PATH: Git Bash has a
 # link.exe of its own that cl would otherwise run; MSYS_NO_PATHCONV keeps /O2 and the like as they are

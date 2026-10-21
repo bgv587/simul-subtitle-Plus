@@ -19,7 +19,25 @@ val sysaudioFile: File = System.getProperty("compose.application.resources.dir")
     ?.takeIf { it.isFile }
     ?: File(System.getProperty("simulsub.root") ?: ".", "tools/win-app/build/resources/windows-x64/sysaudio.exe")
 
+/**
+ * Windows resolves a DLL's imports by name from the app directory and System32 before anywhere else. A machine-wide
+ * onnxruntime.dll (another app installs one there) would then be used instead of the copy shipped next to the JNI,
+ * and the two versions do not fit (the JNI asks for its own ORT API and the process crashes). Loading the shipped copy
+ * by path first binds the name to it.
+ */
+internal fun preloadOnnxRuntime() {
+    val dirs = buildList {
+        System.getProperty("compose.application.resources.dir")?.let { add(File(it)) }
+        System.getProperty("java.library.path").orEmpty().split(File.pathSeparator).forEach { add(File(it)) }
+    }
+    for (dir in dirs.distinct()) {
+        val lib = File(dir, "onnxruntime.dll")
+        if (lib.isFile) { System.load(lib.path); return }
+    }
+}
+
 fun main() {
+    preloadOnnxRuntime()
     ByokTranslator.defaultUserAgent = "SimulSub/$APP_VERSION"
     // the translation service, Jev and the update check go through the system's proxy, as a browser does (a proxy
     // app's "system proxy" mode; without it, some services refuse the direct connection, e.g. Jev with HTTP 451)

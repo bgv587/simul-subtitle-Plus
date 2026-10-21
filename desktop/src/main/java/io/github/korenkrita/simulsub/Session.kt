@@ -46,11 +46,26 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
     // the models ship inside the app (or come from ./models when run from the repo)
     override fun loadModels(asrThreads: Int): SpeechModels {
         val vad = SileroProb(modelsDir)
-        val asr = runCatching { SenseVoiceAsr(modelsDir, asrThreads, prefs.asrSvLang) }.getOrElse { vad.release(); throw it }
+        val asr: Asr
+        val releaseAsr: () -> Unit
+        try {
+            if (prefs.asrBackend == ASR_QWEN3) {
+                check(Qwen3Asr.available(modelsDir)) {
+                    "Qwen3-ASR 模型未安装：${File(modelsDir, "asr_qwen3")}（在仓库目录运行 tools/fetch-qwen3.sh）"
+                }
+                val a = Qwen3Asr(modelsDir, asrThreads, prefs.asrSvLang)
+                asr = a; releaseAsr = a::release
+            } else {
+                val a = SenseVoiceAsr(modelsDir, asrThreads, prefs.asrSvLang)
+                asr = a; releaseAsr = a::release
+            }
+        } catch (e: Throwable) {
+            vad.release(); throw e
+        }
         return object : SpeechModels {
             override val asr: Asr = asr
             override fun vadProb(frame: FloatArray) = vad.prob(frame)
-            override fun release() { asr.release(); vad.release() }
+            override fun release() { releaseAsr(); vad.release() }
         }
     }
 
@@ -104,11 +119,22 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
         overlay.mtLight.value = mtLight; overlay.jevLight.value = jevLight
         overlay.mtReason.value = mtReason; overlay.jevReason.value = jevReason
     }
+    override fun onFinalCaption(line: TranscriptLine) = MeetingTranscript.add(line)
     override fun ended() = post { if (current === this) endedState.value = true }
     override fun finished() { if (current === this) stop() }
 
     /** Settings changed in the main window while subtitles run; the look itself is read by the window directly. */
     private val prefListener: (String) -> Unit = { session.prefChanged(it) }
+
+    private fun beginTranscript() {
+        val asr = if (prefs.asrBackend == ASR_QWEN3) "Qwen3-ASR" else "SenseVoice"
+        val engine = buildString {
+            append(asr).append(" → ").append(prefs.byokModel.ifBlank { "LLM" })
+            if (prefs.judgeModel.isNotBlank()) append(" · 检查 ").append(prefs.judgeModel)
+        }
+        MeetingTranscript.begin(java.time.LocalDateTime.now(), prefs.sourceLang?.zh ?: "自动",
+            prefs.targetLang.zh, prefs.scene.label, engine)
+    }
 
     companion object {
         private const val TAG = "jpsub"
@@ -135,6 +161,7 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
             val s = CaptionService(sysaudio)
             current = s; runningState.value = true; endedState.value = false
             s.prefs.listen(s.prefListener)
+            s.beginTranscript()
             s.session.start()
         }
 

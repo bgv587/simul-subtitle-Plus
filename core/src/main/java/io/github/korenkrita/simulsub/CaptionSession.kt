@@ -95,6 +95,8 @@ interface SessionHost {
     /** UI thread: what the caption window shows now. */
     fun show(lines: List<CaptionLine>, diag: String?, mtLight: ServiceStatus.Light, jevLight: ServiceStatus.Light,
              mtReason: String?, jevReason: String?)
+    /** A finished sentence of this session, for the meeting transcript. Any thread. */
+    fun onFinalCaption(line: TranscriptLine) {}
     /** The session ended by itself and its captions and message stay until the user ends them. Any thread. */
     fun ended()
     /** The session ended by itself with nothing left to show: close it as the user would. UI thread. */
@@ -136,6 +138,8 @@ class CaptionSession(private val host: SessionHost) {
     @Volatile private var overloaded = false
     /** a pipeline worker failed: its error stays on screen */
     @Volatile private var failed = false
+    /** monoMs of the first captured sample: the origin of the transcript's times; null until audio arrives */
+    @Volatile private var audioStartAt: Long? = null
     /**
      * The Jev client of the setup published last; its pause shows without a new request, and a 429 of its service
      * installed by any client (also one of an earlier session, or after the last result) refreshes. Main thread only.
@@ -542,7 +546,12 @@ class CaptionSession(private val host: SessionHost) {
             while (!stopping && !overloaded && !failed) {
                 val capturedAt = src.read(frame)
                 if (capturedAt < 0) break // stopped, or the audio ended by itself
-                if (first) { first = false; setStatus("") } // audio arrives: the capture is running
+                if (first) {
+                    first = false
+                    // the read time is that of the frame's last sample; its first one starts the transcript
+                    audioStartAt = capturedAt - frame.size * 1000L / 16_000
+                    setStatus("") // audio arrives: the capture is running
+                }
                 val f = frame.copyOf()
                 framesRead += f.size
                 val prob = models.vadProb(f)
@@ -579,6 +588,12 @@ class CaptionSession(private val host: SessionHost) {
             "zh" to c.zh, "audio_ms" to t.audioMs, "wait_ms" to t.segmentWaitMs, "asr_q_ms" to t.asrQueueMs, "asr_ms" to t.asrMs,
             "mt_q_ms" to t.mtQueueMs, "mt_ms" to t.mtMs, "check_ms" to t.checkMs, "done_ms" to t.mtDoneMs, "hal" to !c.timeEstimated))
         if (board.accept(c)) refresh()
+        val origin = audioStartAt
+        if (c.isFinal && origin != null && c.audioEndAt > 0 && (c.ja.isNotBlank() || c.zh.isNotBlank())) {
+            val end = (c.audioEndAt - origin).coerceAtLeast(0)
+            val start = (end - t.audioMs).coerceAtLeast(0)
+            host.onFinalCaption(TranscriptLine(c.segmentId, start, end.coerceAtLeast(start + 1), c.ja.trim(), c.zh.trim()))
+        }
     }
 
     private fun setStatus(s: String) { status = s; refresh() }

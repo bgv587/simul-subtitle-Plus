@@ -22,6 +22,7 @@ private const val VAD = "models/vad/silero_vad.onnx"
  * 原来的 ReazonSpeech（只认日英）已经移除——两个模型一起会让 APK 涨到 325 MB。
  */
 private const val SV_DIR = "models/asr_sv"
+// 桌面版还能换 Qwen3-ASR（约 940 MiB，见 desktop 的 Engines.kt）；手机端只用 SenseVoice，这个模型会把 APK 撑过 1.2 GB。
 
 /** SenseVoice 在中文/日文词之间会插空格（它按词切分），字幕里不该有：只删两侧都是 CJK 的那个空格。 */
 private val CJK_GAP = Regex("(?<=[\\u3000-\\u30ff\\u3400-\\u9fff\\uff00-\\uffef])[ \\u3000](?=[\\u3000-\\u30ff\\u3400-\\u9fff\\uff00-\\uffef])")

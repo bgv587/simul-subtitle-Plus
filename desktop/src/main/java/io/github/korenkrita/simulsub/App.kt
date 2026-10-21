@@ -52,7 +52,11 @@ import org.json.JSONObject
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import javax.swing.JFileChooser
+import javax.swing.filechooser.FileNameExtensionFilter
 
 private val prefs get() = Prefs.prefs
 private const val REPO = "https://github.com/J1nxi-youmi/simul-subtitle-diy"
@@ -62,6 +66,41 @@ private fun reveal(f: File) = runCatching {
     ProcessBuilder("explorer.exe", "/select,", f.path).start()
 }
 private fun sizeText(b: Long) = if (b >= 1e6) "%.1f MB".format(b / 1e6) else "%.0f KB".format(b / 1e3)
+
+private val EXPORT_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+private val FILE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm")
+
+/** A name Windows accepts, with the meeting's date so exports of the same title do not collide. */
+private fun exportFileName(title: String, at: LocalDateTime, extension: String): String {
+    val base = title.trim().map { if (it.isISOControl() || it in "\\/:*?\"<>|") '_' else it }
+        .joinToString("").trim(' ', '.').take(60).ifEmpty { "会议记录" }
+    return "$base ${at.format(FILE_TIME)}.$extension"
+}
+
+/** The save dialog and the file; null when the user cancelled, a failure as [Result.failure]. */
+private fun exportTranscript(snapshot: MeetingTranscript.Snapshot, title: String): Result<File>? {
+    val format = prefs.exportFormat
+    val meta = TranscriptMeta(
+        title = title.trim().ifEmpty { snapshot.suggestedTitle },
+        startedAt = snapshot.startedAt.format(EXPORT_TIME),
+        durationMs = snapshot.durationMs,
+        sourceLang = snapshot.sourceLang,
+        targetLang = snapshot.targetLang,
+        scene = snapshot.scene,
+        engine = snapshot.engine,
+    )
+    val body = TranscriptExport.format(format, meta, snapshot.lines, TranscriptOptions(
+        includeSource = prefs.exportSource, includeTimestamps = prefs.exportTimestamps, includeMeta = prefs.exportMeta))
+    val chooser = JFileChooser().apply {
+        dialogTitle = "导出会议记录"
+        fileFilter = FileNameExtensionFilter("${format.label} (*.${format.extension})", format.extension)
+        selectedFile = File(exportFileName(meta.title, snapshot.startedAt, format.extension))
+    }
+    if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) return null
+    var file = chooser.selectedFile
+    if (!file.name.lowercase().endsWith(".${format.extension}")) file = File(file.parentFile, file.name + "." + format.extension)
+    return runCatching { file.writeText(body, Charsets.UTF_8); file }
+}
 
 /** Starts captions from the home screen, the menu bar or the toolbar; null when it cannot, with the reason. */
 private fun startCaptions(): String? {
@@ -194,7 +233,7 @@ private fun Home(startError: String?, setStartError: (String?) -> Unit, openTran
             startError != null -> status(C.err, "还不能开始", startError)
             else -> status(C.brand, "可以开始了", "点下面的按钮开始。")
         }
-        // DIY: 左边是「识别语种」，和手机端一致——识别引擎只有 SenseVoice，能认的就是这五个。
+        // DIY: 左边是「识别语种」，和手机端一致；引擎在设置里选（SenseVoice / Qwen3）。
         // 选「自动」时把翻译的源语言也交给模型自己判断。
         val asrLangs = listOf("ja" to "日语", "auto" to "自动（中日英韩粤）", "zh" to "中文", "ko" to "韩语", "yue" to "粤语")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -213,6 +252,7 @@ private fun Home(startError: String?, setStartError: (String?) -> Unit, openTran
                 else { typing = null; prefs.targetLang = targets[it] }
             }
         }
+        if (prefs.asrBackend == ASR_QWEN3) Hint("Qwen3-ASR 自动判语种；左边这个选择只决定翻译的源语言。")
         // 其他: a language name typed in, saved with 确定; 取消 or a blank name keeps the language in use. Shown again by
         // picking 其他 once more (a typed language in use is in the list, so 其他 is never the selected item).
         typing?.let { t ->
@@ -271,6 +311,30 @@ private fun CaptionTab() {
             contentAlignment = Alignment.Center) {
             CaptionCard(sample, prefs, modifier = Modifier.fillMaxWidth(prefs.widthFrac.coerceIn(Prefs.MIN_WIDTH, 1f)))
         }
+        Label("字幕字体")
+        val fonts = CaptionFonts.choices(prefs.captionFont)
+        var fontMsg by remember { mutableStateOf<String?>(null) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Dropdown(fonts.map { it.label }, fonts.indexOfFirst { it.id == prefs.captionFont }.coerceAtLeast(0),
+                modifier = Modifier.weight(1f)) { prefs.captionFont = fonts[it].id; fontMsg = null }
+            Spacer(Modifier.width(8.dp))
+            TextBtn("选择文件…") {
+                val chooser = javax.swing.JFileChooser().apply {
+                    dialogTitle = "选择字幕字体"
+                    fileFilter = javax.swing.filechooser.FileNameExtensionFilter("字体文件 (*.ttf, *.otf, *.ttc)", "ttf", "otf", "ttc")
+                }
+                if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                    val f = chooser.selectedFile
+                    if (CaptionFonts.file(CaptionFonts.customId(f)) == null)
+                        fontMsg = "这个文件读不出来，请换一个 .ttf / .otf / .ttc 字体"
+                    else { prefs.captionFont = CaptionFonts.customId(f); fontMsg = null }
+                }
+            }
+        }
+        if (prefs.captionFont != CaptionFonts.SYSTEM && CaptionFonts.file(prefs.captionFont) == null)
+            Hint("这个字体现在用不了（文件不存在或无法读取），字幕先用系统字体。", C.err)
+        fontMsg?.let { Hint(it, C.err) }
+        Hint("只改字幕文字，预览会跟着变；自己选的字体在文件被移动或删除后回到系统字体。")
         Label("字幕配色")
         // wraps onto more lines: a sideways scroll needs a trackpad (a mouse wheel scrolls the page)
         @OptIn(ExperimentalLayoutApi::class)
@@ -486,12 +550,27 @@ private fun TranslateTab() {
             prefs.dedupeJoin) { prefs.dedupeJoin = it }
     }
     Group("语音识别") {
+        val qwen3 = Qwen3Asr.available(modelsDir)
+        val engines = buildList {
+            add(ASR_SENSEVOICE to "SenseVoice（快，239 MB）")
+            if (qwen3 || prefs.asrBackend == ASR_QWEN3) add(ASR_QWEN3 to "Qwen3-ASR（更准，约 940 MB）")
+        }
+        Label("识别引擎")
+        Dropdown(engines.map { it.second }, engines.indexOfFirst { it.first == prefs.asrBackend }.coerceAtLeast(0)) {
+            prefs.asrBackendSetting = engines[it].first
+        }
+        if (!qwen3) Hint("Qwen3-ASR 未安装。在仓库目录运行 tools/fetch-qwen3.sh（约 940 MB），重启后这里会多出这个选项。")
+        Hint("SenseVoice 快、体积小，适合「边听边出」；Qwen3-ASR 更准但 CPU 上慢得多，建议配「说完再出」。下次开始字幕时生效。")
         val langs = listOf("ja" to "日语", "auto" to "自动（中日英韩粤）", "zh" to "中文", "ko" to "韩语", "yue" to "粤语")
-        Label("识别语种")
+        Label(if (prefs.asrBackend == ASR_QWEN3) "翻译源语言（Qwen3 自动判语种）" else "识别语种")
         Dropdown(langs.map { it.second }, langs.indexOfFirst { it.first == prefs.asrSvLang }.coerceAtLeast(0)) {
             prefs.asrSvLangSetting = langs[it].first
         }
-        Hint("直播里的句子只有零点几秒，让模型自己判语种容易把日语听成中文或英文。纯日语场次选「日语」；中日混说才用「自动」。下次开始字幕时生效。")
+        if (prefs.asrBackend == ASR_QWEN3) {
+            Hint("Qwen3 在本版固定自动判语种，不能锁定日语；这个选择只告诉翻译原文是什么语种。")
+        } else {
+            Hint("直播里的句子只有零点几秒，让模型自己判语种容易把日语听成中文或英文。纯日语场次选「日语」；中日混说才用「自动」。下次开始字幕时生效。")
+        }
         val pauses = listOf(200, 300, 350, 500, 800)
         Label("停顿切段")
         Dropdown(pauses.map { "%.2f 秒".format(it / 1000f) }, pauses.indexOf(prefs.endSilenceMs).let { if (it < 0) 2 else it }) {
@@ -762,6 +841,45 @@ private fun PageTab() {
 private fun LogsTab() {
     var tick by remember { mutableIntStateOf(0) } // relists after a change, and every few seconds (a session may end)
     LaunchedEffect(Unit) { while (true) { delay(3_000); tick++ } }
+    tick.let { }
+    Group("导出会议记录") {
+        val snap = MeetingTranscript.snapshot()
+        if (snap == null) {
+            Hint("还没有字幕记录。开始一次字幕后，说完的句子会记在这里；结束或进行中都可以导出。")
+        } else {
+            var title by remember(snap.startedAt) { mutableStateOf(snap.suggestedTitle) }
+            var exportMsg by remember(snap.startedAt) { mutableStateOf<String?>(null) }
+            var exported by remember(snap.startedAt) { mutableStateOf<File?>(null) }
+            val formats = TranscriptFormat.entries
+            Text((if (CaptionService.running) "本次字幕（还在记录）" else "上一次字幕") + " · " +
+                snap.startedAt.format(EXPORT_TIME) + " · " + TranscriptExport.duration(snap.durationMs) + " · " + snap.lines.size + " 句",
+                fontSize = 14.sp)
+            Label("会议标题")
+            Field(title, { title = it.take(80) }, "会议标题")
+            Label("格式")
+            Dropdown(formats.map { it.label }, formats.indexOf(prefs.exportFormat)) { prefs.exportFormat = formats[it] }
+            SwitchRow("包含原文", "每句译文下面附上识别出的原文。", prefs.exportSource) { prefs.exportSource = it }
+            Divider()
+            SwitchRow("包含时间", "Markdown 和纯文本里显示每句开始的时间；SRT、VTT 和 JSON 总是带时间。",
+                prefs.exportTimestamps) { prefs.exportTimestamps = it }
+            Divider()
+            SwitchRow("包含会议信息", "标题、日期、时长、语言、场景和引擎；SRT 不含这些。",
+                prefs.exportMeta) { prefs.exportMeta = it }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Btn("导出…", primary = true, enabled = snap.lines.isNotEmpty()) {
+                    val r = exportTranscript(snap, title)
+                    if (r != null) {
+                        exportMsg = r.fold({ "已导出：${it.path}" }, { "导出失败：${it.message ?: it.javaClass.simpleName}" })
+                        exported = r.getOrNull()
+                    }
+                }
+                exported?.let { f -> TextBtn("在文件夹中显示") { reveal(f) } }
+            }
+            exportMsg?.let { Hint(it, if (exported == null) C.err else C.ok) }
+            if (snap.lines.isEmpty()) Hint(if (CaptionService.running) "还没说完一句；说完的句子会随时出现在这里。" else "这次没有可导出的句子。")
+            Hint("Markdown 适合整理会议纪要；JSON 带每句的毫秒时间，适合再做分析；SRT / VTT 可以导入剪辑和字幕软件。")
+        }
+    }
     Group("使用记录") {
         SwitchRow("记录每次使用", "打开后，每次开始字幕会在电脑上留一份文字记录：识别结果、翻译的提示词和译文、在线 Decisions 模型辅助的请求和回答，不含声音和 key。只有你自己发出去才会离开电脑，出问题时可以发给开发者帮助排查。从下次开始字幕起生效。",
             prefs.keepLogs) { prefs.keepLogs = it }

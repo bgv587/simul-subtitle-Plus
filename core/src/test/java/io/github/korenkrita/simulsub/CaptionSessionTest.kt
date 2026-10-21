@@ -128,6 +128,7 @@ class CaptionSessionTest {
         val ended = CountDownLatch(1)
         val finished = CountDownLatch(1)
         @Volatile var lines: List<CaptionLine> = emptyList()
+        val finals = java.util.concurrent.CopyOnWriteArrayList<TranscriptLine>()
         @Volatile var diag: String? = null
         override fun post(r: () -> Unit) { ui.execute(r) }
         override fun postDelayed(r: () -> Unit, ms: Long): AutoCloseable {
@@ -158,6 +159,7 @@ class CaptionSessionTest {
         override fun openAudio(log: SessionLog?) = audio
         override fun show(lines: List<CaptionLine>, diag: String?, mtLight: ServiceStatus.Light, jevLight: ServiceStatus.Light,
                           mtReason: String?, jevReason: String?) { this.lines = lines; this.diag = diag }
+        override fun onFinalCaption(line: TranscriptLine) { finals += line }
         override fun ended() = ended.countDown()
         override fun finished() = finished.countDown()
         /** waits for what was posted to the UI thread so far */
@@ -176,6 +178,11 @@ class CaptionSessionTest {
         // what was heard before the end is on screen as a finished sentence, with why it ended and how to go on
         val last = host.lines.last()
         assertEquals("译文", last.zh); assertEquals("テスト", last.ja); assertTrue(last.isFinal)
+        // the meeting transcript gets the same sentence, timed from the first captured audio
+        val transcript = host.finals.single()
+        assertEquals("テスト", transcript.source); assertEquals("译文", transcript.target)
+        assertTrue("start=${transcript.startMs} end=${transcript.endMs}",
+            transcript.startMs in 0..1_500 && transcript.endMs in 1_000..5_000 && transcript.endMs > transcript.startMs)
         assertTrue(host.diag!!, host.diag!!.startsWith("⚠ 系统声音采集停止了（退出码 1）。点 ✕ 结束后可以重新开始。"))
         assertTrue(host.audio.closed)
         assertEquals(1L, host.finished.count) // the window stays

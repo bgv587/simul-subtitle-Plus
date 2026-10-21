@@ -52,6 +52,8 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
     /** page colours: "system", "light" or "dark" */
     var theme: String get() = str("theme") ?: "system"; set(v) = put("theme" to v)
     var palette: String get() = str("palette") ?: PALETTES[0].id; set(v) = put("palette" to v)
+    /** caption font: "system", an installed file name, or "file:<absolute path>" (see CaptionFonts) */
+    var captionFont: String get() = str("captionFont") ?: CaptionFonts.SYSTEM; set(v) = put("captionFont" to v)
     /** caption card width as a part of the screen width */
     var widthFrac: Float get() = float("widthFrac", DEFAULT_WIDTH); set(v) = put("widthFrac" to v)
     /** caption area height as a part of the screen height; 0 = follows the content */
@@ -87,6 +89,9 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
     /** DIY: 识别语种，和手机端共用同一个键（默认日语） */
     val asrSvLang: String get() = str("asrSvLang") ?: "ja"
     var asrSvLangSetting: String get() = asrSvLang; set(v) = put("asrSvLang" to v)
+    /** [ASR_SENSEVOICE] (default) or [ASR_QWEN3]; desktop only (see Qwen3Asr). */
+    val asrBackend: String get() = str("asrBackend") ?: ASR_SENSEVOICE
+    var asrBackendSetting: String get() = asrBackend; set(v) = put("asrBackend" to v)
     override var finalOnly: Boolean get() = bool("finalOnly", false); set(v) = put("finalOnly" to v)
     /** null: not sure (the recognizer decides) */
     override var sourceLang: Lang?
@@ -104,6 +109,11 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
     override var jevCheck: Boolean get() = bool("jevCheck", false); set(v) = put("jevCheck" to v)
     override var dedupeJoin: Boolean get() = bool("dedupeJoin", false); set(v) = put("dedupeJoin" to v)
     override var keepLogs: Boolean get() = bool("keepLogs", false); set(v) = put("keepLogs" to v)
+    /** 记录 › 导出会议记录: the last format and what the file includes */
+    var exportFormat: TranscriptFormat get() = TranscriptFormat.of(str("exportFormat")); set(v) = put("exportFormat" to v.id)
+    var exportSource: Boolean get() = bool("exportSource", true); set(v) = put("exportSource" to v)
+    var exportTimestamps: Boolean get() = bool("exportTimestamps", true); set(v) = put("exportTimestamps" to v)
+    var exportMeta: Boolean get() = bool("exportMeta", true); set(v) = put("exportMeta" to v)
     override var contextOn: Boolean get() = bool("contextOn", true); set(v) = put("contextOn" to v)
     override var contextSentences: Int
         get() = int("contextSentences", Pipeline.PREVIOUS_SENTENCES).coerceIn(1, Pipeline.MAX_PREVIOUS_SENTENCES)
@@ -197,7 +207,8 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
     fun unlisten(l: (String) -> Unit) = listeners.remove(l)
 
     /** Back to the defaults of the caption look (「恢复默认」 on 字幕). */
-    fun resetStyle() = put("textSp" to null, "bgAlpha" to null, "palette" to null, "widthFrac" to null, "heightFrac" to null,
+    fun resetStyle() = put("textSp" to null, "bgAlpha" to null, "palette" to null, "captionFont" to null,
+        "widthFrac" to null, "heightFrac" to null,
         "showJa" to null, "showStats" to null, "keepSentences" to null, "keepChars" to null)
 
     companion object {
