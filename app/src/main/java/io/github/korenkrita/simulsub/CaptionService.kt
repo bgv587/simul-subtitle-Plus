@@ -379,7 +379,7 @@ class CaptionService : Service(), SessionHost {
         return Notification.Builder(this, "cap")
             .setSmallIcon(R.drawable.ic_stat_caption)
             .setColor(getColor(R.color.brand))
-            .setContentTitle(if (paused) "同传字幕已暂停" else "同传字幕运行中")
+            .setContentTitle(if (paused) "SIMSUB Plus 已暂停" else "SIMSUB Plus 运行中")
             .setContentText(if (paused) "声音不再识别；点「继续」接着出字幕" else "点字幕可调整样式；点这里的「停止」结束")
             .setContentIntent(PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
             .apply { if (!ended) addAction(Notification.Action.Builder(null, if (paused) "继续" else "暂停", pause).build()) }

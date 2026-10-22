@@ -136,6 +136,28 @@ data class Target(val lang: Lang?, val name: String) {
     /** the settings value: a preset's code, or "custom:<name>" */
     val stored: String get() = lang?.code ?: "$CUSTOM$name"
 
+    /**
+     * Whether [text] is already written in this language's own script, so a request that failed had nothing to
+     * translate: a service asked to turn Chinese into Chinese answers with an error rather than a sentence. Only the
+     * presets with a script of their own are judged this way — English and a typed-in language are not, and a
+     * kanji-only Japanese fragment («犬») still counts as Chinese here, which is why this decides only what a
+     * *failed* request shows, never whether to send one.
+     */
+    fun alreadyIn(text: String): Boolean {
+        var han = 0; var kana = 0; var hangul = 0
+        for (c in text) when {
+            c in '一'..'鿿' || c in '㐀'..'䯿' -> han++                        // CJK ideographs (incl. ext. A)
+            c in '぀'..'ヿ' -> kana++                                          // hiragana + katakana
+            c in '가'..'힣' || c in 'ㅱ'..'ㅎ' -> hangul++                    // syllables + jamo
+        }
+        return when (lang) {
+            Lang.ZH -> han > 0 && kana == 0 && hangul == 0
+            Lang.JA -> kana > 0
+            Lang.KO -> hangul > 0
+            else -> false
+        }
+    }
+
     companion object {
         private const val CUSTOM = "custom:"
         const val MAX_NAME = 40

@@ -2,7 +2,7 @@
 
 ## 当前内置模型
 
-同传字幕内置 **ReazonSpeech k2 v2 ja-en** 离线模型，采用 `sherpa-onnx` 的 int8 量化导出版（[csukuangfj/reazonspeech-k2-v2-ja-en](https://huggingface.co/csukuangfj/reazonspeech-k2-v2-ja-en)，原始模型由 [ReazonSpeech](https://github.com/reazon-research/ReazonSpeech) 发布），由单个模型同时覆盖**日语**和**英语**识别。
+SIMSUB Plus 内置 **ReazonSpeech k2 v2 ja-en** 离线模型，采用 `sherpa-onnx` 的 int8 量化导出版（[csukuangfj/reazonspeech-k2-v2-ja-en](https://huggingface.co/csukuangfj/reazonspeech-k2-v2-ja-en)，原始模型由 [ReazonSpeech](https://github.com/reazon-research/ReazonSpeech) 发布），由单个模型同时覆盖**日语**和**英语**识别。
 
 ### 关键实现细节
 
@@ -43,7 +43,7 @@
 2. **语言强制参数无效**：实测将 SenseVoice 的参数设为 `language="ja"` 时，夹杂的英语片段仍会被识别为英语，无法靠该参数规避跨语种误识。
 3. **直播场景抽查**：在真实直播录音切片上对比，两款模型在短促口语片段上的输出分歧较大，因无标准参考文本，难以单凭朗读集断言谁在直播场景下绝对占优。
 
-**当前选型结论**：继续采用 **ReazonSpeech**。它在日语上的准确率与 SenseVoice 差距很小，但**解码速度快一倍以上、安装包体积仅 1/3、内存占用不到 1/4**，更适合手机后台与桌面常驻同传；英语识别准确率较低属于当前权衡下的已知取舍。
+**当前选型结论**：继续采用 **ReazonSpeech**。它在日语上的准确率与 SenseVoice 差距很小，但**解码速度快一倍以上、安装包体积仅 1/3、内存占用不到 1/4**，更适合手机后台与桌面常驻；英语识别准确率较低属于当前权衡下的已知取舍。
 
 ---
 

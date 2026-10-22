@@ -2,7 +2,7 @@
   <img src="docs/images/icon.svg" width="112" alt="Simul Subtitle">
 </p>
 
-<h1 align="center">Simul Subtitle（同传字幕）</h1>
+<h1 align="center">SIMSUB Plus（同传字幕）</h1>
 
 <p align="center">
   Real-time floating translated subtitles for Japanese and English videos &amp; livestreams on Android and Windows.<br>

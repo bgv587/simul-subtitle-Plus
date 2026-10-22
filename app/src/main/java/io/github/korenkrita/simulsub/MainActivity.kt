@@ -940,7 +940,7 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = (8 * dpx).toInt() })
         }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (6 * dpx).toInt() })
-        box.addView(MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+        box.addView(MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = "使用 B 站 Index 免费翻译（无需 key）"
             textSize = 15f; isAllCaps = false; isEnabled = !testing
             setOnClickListener {

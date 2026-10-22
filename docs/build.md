@@ -185,7 +185,7 @@ Windows 版仅构建 64 位（`x64`）绿色免安装压缩包。通过 GitHub A
    ```bash
    git push origin main
    gh release create "v$VERSION" --repo KorenKrita/simul-subtitle --target "$(git rev-parse HEAD)" --latest \
-     --title "同传字幕 v$VERSION" --notes-file build/release/notes.md \
+     --title "SIMSUB Plus v$VERSION" --notes-file build/release/notes.md \
      "build/release/simul-subtitle-v$VERSION.apk" build/release/update.json \
      "build/release/SimulSub-$VERSION-windows-x64.zip"
    ```

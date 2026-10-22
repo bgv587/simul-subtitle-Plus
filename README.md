@@ -1,5 +1,5 @@
-# 同声传译（Plus版）
-Plus版，基于 [J1nxi-youmi/simul-subtitle-diy](https://github.com/J1nxi-youmi/simul-subtitle-diy)
+# SIMSUB Plus
+基于 [J1nxi-youmi/simul-subtitle-diy](https://github.com/J1nxi-youmi/simul-subtitle-diy) 的实时字幕，安卓 + Windows 双端
 
 ## 下载
 
@@ -24,7 +24,8 @@ Plus版，基于 [J1nxi-youmi/simul-subtitle-diy](https://github.com/J1nxi-youmi
 
 - **识别**：SenseVoice，中/英/日/韩/粤一部模型全认，可锁语种也可自动判断
 - **翻译**：填自己的 OpenAI 兼容接口。Qwen-MT 走原生协议，语言和术语用结构化参数传，不塞提示词
-- **免费翻译**：设置里一键切到「B站 Index 免费」（`index-translate.bilibili.com` + `Index-Translate-35B-A3B`），不用 key、不用注册，自动带上必需的 User-Agent。没预算或只想先试试就用它，效果不如付费模型
+- **免费翻译**：「设置 → 翻译」的 LLM API 卡片里点「使用 B 站 Index 免费翻译」（`index-translate.bilibili.com` + `Index-Translate-35B-A3B`），不用 key、不用注册，自动带上必需的 User-Agent。没预算或只想先试试就用它，效果不如付费模型
+- **同语种不装失败**：字幕语言选中文、听到的本来就是中文时，接口会拒译同语种——这时直接上屏听到的原文，不再写成「[翻译失败]」
 - **会议记录**：桌面端按「开始字幕 → 停止字幕」存成一段，本次运行留最近 50 段，可导出 Markdown / 纯文本 / SRT / VTT / JSON（暂停再继续仍算同一段）
 - **术语**：只把这一句里真的出现的词发过去，没出现的不发（否则模型会硬塞进译文）
 - **残留假名**：译文里还剩成串平假名或片假名时（如「别说是アルバイト」「…像廉んかちゃん那样」），自动带提示重译一次

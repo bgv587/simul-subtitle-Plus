@@ -213,4 +213,20 @@ class TranslationTest {
         assertNull(LlmProfile.name("x".repeat(LlmProfile.MAX_NAME + 1), list).first)
         assertEquals("p6", LlmProfile.newId(listOf(LlmProfile("p5", "a")), now = 5))
     }
+
+    @Test
+    fun aTextWrittenInTheCaptionLanguagesOwnScriptIsDetected() {
+        val zh = Target.ZH
+        assertTrue(zh.alreadyIn("今天天气不错"))
+        assertFalse(zh.alreadyIn("今日はいい天気だ")) // kana: Japanese, so it still wants a translation
+        assertFalse(zh.alreadyIn("アルバイト"))
+        assertFalse(zh.alreadyIn("안녕하세요"))
+        assertFalse(zh.alreadyIn("hello")); assertFalse(zh.alreadyIn(""))
+        assertTrue(Target.of(Lang.JA).alreadyIn("今日はいい天気だ"))
+        assertFalse(Target.of(Lang.JA).alreadyIn("今天天气不错"))
+        assertTrue(Target.of(Lang.KO).alreadyIn("안녕하세요"))
+        // English and a typed-in language have no script rule of their own
+        assertFalse(Target.of(Lang.EN).alreadyIn("hello"))
+        assertFalse(Target.custom("中文")!!.alreadyIn("今天天气不错"))
+    }
 }

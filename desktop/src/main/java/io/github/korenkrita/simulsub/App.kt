@@ -122,13 +122,13 @@ fun app() = application {
     var trayDark by remember { mutableStateOf(taskbarDark()) }
     LaunchedEffect(Unit) { while (true) { delay(5_000); trayDark = taskbarDark() } }
 
-    Tray(icon = TrayIcon(running, trayDark), tooltip = "同传字幕", menu = {
+    Tray(icon = TrayIcon(running, trayDark), tooltip = "SIMSUB Plus", menu = {
         if (running) {
             if (!CaptionService.endedState.value) Item(if (CaptionService.pausedState.value) "继续字幕" else "暂停字幕", onClick = { CaptionService.togglePause() })
             Item("停止字幕", onClick = { CaptionService.stop() })
         }
         else Item("开始字幕", onClick = { startError = startCaptions(); if (startError != null) mainOpen = true })
-        Item("打开同传字幕", onClick = { mainOpen = true })
+        Item("打开 SIMSUB Plus", onClick = { mainOpen = true })
         Separator()
         Item("退出", onClick = { CaptionService.stop(); exitApplication() })
     })
@@ -141,7 +141,7 @@ fun app() = application {
     if (mainOpen) {
         val state = rememberWindowState(size = DpSize(520.dp, 820.dp))
         // closing the window keeps the app (and its captions) in the menu bar
-        Window(onCloseRequest = { mainOpen = false }, state = state, title = "同声传译（Plus版）", icon = painterResource("icon.png")) {
+        Window(onCloseRequest = { mainOpen = false }, state = state, title = "SIMSUB Plus", icon = painterResource("icon.png")) {
             // the title bar is the system's: follow the page colour, not just the system's own setting
             Themed(dark) {
                 Box(Modifier.fillMaxSize().background(C.bg)) { MainScreen(startError) { startError = it } }
@@ -189,7 +189,7 @@ private fun MainScreen(startError: String?, setStartError: (String?) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         if (!settings) {
             Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 14.dp, top = 18.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("同传字幕", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("SIMSUB Plus", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Grow()
                 TextBtn("设置") { settings = true }
             }
@@ -733,8 +733,8 @@ private fun Byok(running: Boolean) {
         byokResult.value = "已切换到「${BilibiliIndex.PROFILE_NAME}」：不用填 key，字幕从下一句开始用它翻译。" +
             "这是 B 站公开的免费接口，没有服务保障，可能限流、停用或改规则；不要发送敏感内容。"
     }
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        TextBtn("使用 B 站 Index 免费翻译", enabled = !busy) { useBilibili() }
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Btn("使用 B 站 Index 免费翻译", enabled = !busy) { useBilibili() }
         Spacer(Modifier.width(8.dp))
         Text("无需 key；免费服务没有保障", fontSize = 12.sp, color = C.muted)
     }
@@ -977,7 +977,7 @@ private fun LogsTab() {
 @Composable
 private fun AboutSection() {
     Group("关于") {
-        Text("同声传译（Plus版）  版本 $APP_VERSION", fontSize = 15.sp, modifier = Modifier.padding(vertical = 6.dp))
+        Text("SIMSUB Plus  版本 $APP_VERSION", fontSize = 15.sp, modifier = Modifier.padding(vertical = 6.dp))
         Divider()
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Btn(if (update.value is Update.Checking) "检查中…" else "检查更新", enabled = update.value !is Update.Checking,
@@ -1077,7 +1077,7 @@ private fun ApplicationScope.AutoUpdateCheck() {
     LaunchedEffect(Unit) { if (prefs.autoUpdate && APP_VERSION_CODE > 0) { delay(3_000); checkNow(manual = false) } }
     val r = offered.value ?: return
     val dark = when (prefs.theme) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
-    Window(onCloseRequest = { offered.value = null }, title = "同声传译（Plus版）有新版本", state = rememberWindowState(size = DpSize(440.dp, 360.dp))) {
+    Window(onCloseRequest = { offered.value = null }, title = "SIMSUB Plus 有新版本", state = rememberWindowState(size = DpSize(440.dp, 360.dp))) {
         Themed(dark) {
             Column(Modifier.fillMaxSize().background(C.bg).padding(18.dp).verticalScroll(rememberScrollState())) {
                 UpdateBox(r)

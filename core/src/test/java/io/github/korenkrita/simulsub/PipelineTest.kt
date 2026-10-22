@@ -611,6 +611,33 @@ class PipelineTest {
     }
 
     @Test
+    fun textAlreadyInTheCaptionLanguageGoesUpWithoutTheFailureLabel() {
+        // a Chinese stream with Chinese captions: the service is asked to translate Chinese into Chinese and refuses
+        val asr = object : Asr {
+            override fun recognize(samples: FloatArray) = when (samples.size) {
+                10 -> "今天天气不错"
+                20 -> "今日はいい天気だ"
+                else -> "ja${samples.size}"
+            }
+        }
+        val mt = object : Mt {
+            override fun translate(prompt: String): MtResult? = null
+            override fun cancel() {}
+        }
+        val out = Collections.synchronizedList(ArrayList<Caption>())
+        val done = CountDownLatch(2)
+        val p = Pipeline(asr, mt, { c -> out.add(c); if (c.isFinal) done.countDown() })
+        p.start()
+        try {
+            p.submit(job(1L, 1, true, 10)); p.submit(job(2L, 1, true, 20))
+            assertTrue(done.await(5, TimeUnit.SECONDS))
+        } finally { p.stop(); p.awaitStopped() }
+        assertEquals("今天天气不错", out.single { it.isFinal && it.segmentId == 1L }.zh)
+        // Japanese into Chinese is a translation that really did fail, so that one still says so
+        assertTrue(out.single { it.isFinal && it.segmentId == 2L }.zh.startsWith("[翻译失败]"))
+    }
+
+    @Test
     fun aSegmentOfNothingButPunctuationIsNeitherTranslatedNorShown() {
         val mt = FakeMt(0)
         val out = Collections.synchronizedList(ArrayList<Caption>())

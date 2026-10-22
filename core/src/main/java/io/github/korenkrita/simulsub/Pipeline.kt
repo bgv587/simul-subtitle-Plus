@@ -736,7 +736,9 @@ class Pipeline(
             var zh = if (translatable) r?.takeIf { it.usable }?.text else ""
             if (zh == null) {
                 if (!job.isFinal) continue
-                zh = "[翻译失败] ${j.ja}"
+                // what was heard is already in the caption language (a Chinese stream with Chinese captions): the
+                // service had nothing to translate and said so, so the sentence goes up as it stands
+                zh = if (j.setup.target.alreadyIn(j.ja)) j.ja else "[翻译失败] ${j.ja}"
             }
             val end = clock()
             if (job.isFinal && checkTranslations) {
