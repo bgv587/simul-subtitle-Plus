@@ -176,7 +176,7 @@ class CaptionService : Service(), SessionHost {
         val wm = getSystemService(WindowManager::class.java)
         val dm = resources.displayMetrics
         val v = CaptionOverlayView(this, interactive = true)
-        v.setColors(CaptionOverlayView.palette(prefs.palette))
+        v.setColors(prefs.paletteOf())
         v.applyStyle(prefs.textSp.coerceIn(CaptionOverlayView.MIN_SP, CaptionOverlayView.MAX_SP), prefs.bgAlpha)
         // usable area: current window bounds (follows rotation) minus status / navigation bars. Only its size is
         // used: the overlay's x/y are already relative to that area (its parent frame excludes the bars).
@@ -314,7 +314,7 @@ class CaptionService : Service(), SessionHost {
                 "widthFrac" -> (area().width() * prefs.widthFrac).toInt().let { if (it != cardW) { cardW = it; layout() } }
                 "heightFrac" -> if (captionH == 0) { applyHeight(); layout(); anchor(); savePlace() }
                 "showJa", "showStats" -> { v.setShown(prefs.showJa, prefs.showStats); session.prefChanged(key) }
-                "palette" -> v.setColors(CaptionOverlayView.palette(prefs.palette))
+                "palette", "colorZh", "colorJa", "colorBg" -> v.setColors(prefs.paletteOf())
                 "finalOnly" -> { v.setFinalOnly(prefs.finalOnly); session.prefChanged(key) }
                 // the captions and the translation settings are the session's
                 else -> key?.let { session.prefChanged(it) }

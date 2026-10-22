@@ -582,5 +582,14 @@ class CaptionOverlayView(ctx: Context, private val interactive: Boolean) : Linea
             Palette("paper", "白底黑字", 0xFF16151C.toInt(), 0xCC3D3B48.toInt(), 0xFF6E6C7A.toInt(), 0xFF5B4BD6.toInt(), 0xFFFFFFFF.toInt(), shadow = false),
         )
         fun palette(id: String?) = PALETTES.firstOrNull { it.id == id } ?: PALETTES[0]
+
+        /**
+         * DIY: the user's own scheme: they set the caption, the source text and the card; the draft line and the
+         * timing line follow the caption colour into the card (see [CaptionColors]), so a draft can never look as
+         * finished as a sentence, and dark text gets no shadow the way 白底黑字 has none.
+         */
+        fun customPalette(zh: Int, ja: Int, bg: Int) = Palette(
+            CaptionColors.CUSTOM_ID, CaptionColors.CUSTOM_LABEL, zh, ja,
+            CaptionColors.draft(zh, bg), CaptionColors.stats(zh, bg), bg, shadow = CaptionColors.shadow(zh))
     }
 }

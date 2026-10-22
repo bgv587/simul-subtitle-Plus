@@ -5,15 +5,15 @@
 
 两个平台的文件挂在**同一个页面**的 Assets 里（[最新构建](../../releases/tag/plus-latest)），按文件名区分：
 
-### 安卓 —— `app-debug.apk`（约 251 MB）
+### 安卓 —— `SimulSub-Plus<版本号>.apk`（约 251 MB）
 
-[app-debug.apk](../../releases/latest/download/app-debug.apk)
+到 [下载页](../../releases/tag/plus-latest) 的 Assets 里取 `SimulSub-Plus….apk`
 
 需要 Android 10 以上、arm64。装完在 App 里就能检查更新。
 
-### Windows —— `Windows-SimulSub-x64.zip`（约 215 MB）
+### Windows —— `Windows-SimulSub-Plus<版本号>-x64.zip`（约 215 MB）
 
-[Windows-SimulSub-x64.zip](../../releases/latest/download/Windows-SimulSub-x64.zip)
+到同一个页面的 Assets 里取 `Windows-SimulSub-Plus…-x64.zip`
 
 解压到英文路径后双击 `SimulSub.exe`。没有代码签名，首次运行会弹 SmartScreen，点「更多信息 → 仍要运行」。
 桌面版没有应用内更新，升级要重新下载。
@@ -32,6 +32,7 @@
 - **译文检查**：可选，用自己的 LLM 逐句复核，发现译反、漏否定、直译比喻就带提示重译；可单独配地址和 key
 - **断句**：停顿切段、单句最长都能调——调小出字快但句子碎，调大句子完整但更晚
 - **字幕**：边说边出草稿（灰字会就地修正），或说完再出；可同时显示原文和用时
+- **配色**：7 套预设，也能自己配——原文、译文、背景三个颜色随便改，写好保存就用；草稿行和用时行跟着译文颜色自动调暗，深色译文自动去掉阴影
 - **暂停 / 继续**：工具栏、App 首页（手机端还有通知栏）都能暂停和继续。暂停时说到一半的句子立即定稿，之后的声音不再识别，字幕窗口和会话记录都保留；继续时不用重新加载模型，同一段会话记录也不会被切开
 - **隐私**：声音只在本机识别，不上传；翻译只发识别出的文字
 

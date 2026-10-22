@@ -52,6 +52,15 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
     /** page colours: "system", "light" or "dark" */
     var theme: String get() = str("theme") ?: "system"; set(v) = put("theme" to v)
     var palette: String get() = str("palette") ?: PALETTES[0].id; set(v) = put("palette" to v)
+    /** DIY: the user's own caption colours (ARGB), read with the [palette] id they belong to */
+    var colorZh: Int get() = int("colorZh", CaptionColors.DEFAULT_ZH); set(v) = put("colorZh" to v)
+    var colorJa: Int get() = int("colorJa", CaptionColors.DEFAULT_JA); set(v) = put("colorJa" to v)
+    var colorBg: Int get() = int("colorBg", CaptionColors.DEFAULT_BG); set(v) = put("colorBg" to v)
+    /** one edit: a running card never shows one sentence's colours half-changed */
+    fun setColors(zh: Int, ja: Int, bg: Int) = put("colorZh" to zh, "colorJa" to ja, "colorBg" to bg)
+    /** the [Palette] the stored id points at, custom included */
+    fun paletteOf(): Palette = if (palette == CaptionColors.CUSTOM_ID) customOf() else palette(palette)
+    fun customOf(): Palette = customPalette(colorZh, colorJa, colorBg)
     /** caption font: "system", an installed file name, or "file:<absolute path>" (see CaptionFonts) */
     var captionFont: String get() = str("captionFont") ?: CaptionFonts.SYSTEM; set(v) = put("captionFont" to v)
     /** caption card width as a part of the screen width */

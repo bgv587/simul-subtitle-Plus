@@ -89,7 +89,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: SimulSub-debug
+          name: SimulSub-Plus${{ env.CI_VERSION_CODE }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -106,15 +106,22 @@ jobs:
           SIZE=$(stat -c%s "$APK")
           SHA=$(sha256sum "$APK" | awk '{print $1}')
           NAME="Plus$CI_VERSION_CODE"
-          MB=$(( SIZE / 1048576 ))
+          APKNAME="SimulSub-$NAME.apk"
+          # 资产名取自文件名（file#label 只改显示标签），所以先复制成带版本号的名字
+          mkdir -p dist && cp "$APK" "dist/$APKNAME"
           MSG=$(git log -1 --pretty=%s | tr -d '"')
           BODY=$(git log -1 --pretty=%b | sed '/^$/d' | head -6 | tr -d '"')
-          printf '{"versionCode":%s,"versionName":"%s","notes":"%s","apkUrl":"https://github.com/%s/releases/latest/download/app-debug.apk","size":%s,"sha256":"%s","commit":"%s"}\n' \
-            "$CI_VERSION_CODE" "$NAME" "$MSG" "$GITHUB_REPOSITORY" "$SIZE" "$SHA" "$GITHUB_SHA" > update.json
+          printf '{"versionCode":%s,"versionName":"%s","notes":"%s","apkUrl":"https://github.com/%s/releases/latest/download/%s","size":%s,"sha256":"%s","commit":"%s"}\n' \
+            "$CI_VERSION_CODE" "$NAME" "$MSG" "$GITHUB_REPOSITORY" "$APKNAME" "$SIZE" "$SHA" "$GITHUB_SHA" > update.json
           cat update.json
           gh release view plus-latest >/dev/null 2>&1 \
             || gh release create plus-latest --title "最新构建" --notes "首次创建" --latest
-          gh release upload plus-latest "$APK#app-debug.apk" update.json --clobber
+          gh release upload plus-latest "dist/$APKNAME" update.json --clobber
+          # 只留这一版：以前的无版本号包、更早的版本包都删掉，滚动 release 不会越攒越大
+          gh release view plus-latest --json assets -q '.assets[].name' > /tmp/assets.txt || true
+          grep -E '^(app-debug|SimulSub-Plus[0-9]+)\.apk$' /tmp/assets.txt | grep -v "^$APKNAME$" | while read -r a; do
+            gh release delete-asset plus-latest "$a" --yes && echo "已删除旧包 $a"
+          done || true
           # 把 plus-latest 移到这次提交：否则 release 页显示的 commit 还停在第一次创建时
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/plus-latest" -f "sha=$GITHUB_SHA" -F "force=true" >/dev/null
           {
@@ -132,7 +139,7 @@ jobs:
             echo ""
             echo "### 下载"
             echo ""
-            echo "下面的 Assets 里就是安装包：安卓取 \`app-debug.apk\`，Windows 取 \`Windows-SimulSub-x64.zip\`（解压后双击 \`SimulSub.exe\`）。"
+            echo "下面的 Assets 里就是安装包：安卓取 \`$APKNAME\`，Windows 取 \`Windows-SimulSub-$NAME-x64.zip\`（解压后双击 \`SimulSub.exe\`）。"
             echo ""
             echo "### 校验"
             echo ""
@@ -174,9 +181,9 @@ jobs:
             echo "本版本没有标记保留，跳过 APK 存档（以后想存：在这个 tag 上 Run workflow 并勾选保留）"
             exit 0
           fi
-          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          APKNAME="SimulSub-Plus$CI_VERSION_CODE.apk"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK#app-debug.apk" --clobber
+            gh release upload "$TAG" "dist/$APKNAME" --clobber
             echo "已更新 $TAG 的 APK"
           else
             {
@@ -184,13 +191,13 @@ jobs:
               echo ""
               echo "#### 安卓（APK）"
               echo ""
-              echo "- [app-debug.apk](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/app-debug.apk)"
+              echo "- [$APKNAME](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$APKNAME)"
               echo ""
               echo "#### Windows（ZIP）"
               echo ""
-              echo "- [Windows-SimulSub-x64.zip](https://github.com/$GITHUB_REPOSITORY/releases/download/plus-latest/Windows-SimulSub-x64.zip)（同一时期构建的 Windows 包）"
+              echo "- [Windows-SimulSub-Plus$CI_VERSION_CODE-x64.zip](https://github.com/$GITHUB_REPOSITORY/releases/download/plus-latest/Windows-SimulSub-Plus$CI_VERSION_CODE-x64.zip)（同一时期构建的 Windows 包）"
             } > tag-notes.md
-            gh release create "$TAG" "$APK#app-debug.apk" --title "$TAG" --notes-file tag-notes.md
+            gh release create "$TAG" "dist/$APKNAME" --title "$TAG" --notes-file tag-notes.md
             echo "已创建版本 release: $TAG"
           fi
           # 关键：把 latest 重新指回滚动 release，否则应用内更新会读到没有 update.json 的版本页

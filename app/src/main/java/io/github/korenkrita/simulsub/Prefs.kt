@@ -42,6 +42,27 @@ class Prefs(ctx: Context) : SessionPrefs {
         get() = sp.getString("palette", CaptionOverlayView.PALETTES[0].id)!!
         set(v) = sp.edit().putString("palette", v).apply()
 
+    // DIY: 自定义配色的三样颜色（ARGB），和 palette = "custom" 一起用；草稿色与统计色跟着译文色推导
+    var colorZh: Int
+        get() = sp.getInt("colorZh", CaptionColors.DEFAULT_ZH)
+        set(v) = sp.edit().putInt("colorZh", v).apply()
+    var colorJa: Int
+        get() = sp.getInt("colorJa", CaptionColors.DEFAULT_JA)
+        set(v) = sp.edit().putInt("colorJa", v).apply()
+    var colorBg: Int
+        get() = sp.getInt("colorBg", CaptionColors.DEFAULT_BG)
+        set(v) = sp.edit().putInt("colorBg", v).apply()
+
+    /** The three colours in one edit: an overlay never shows a half-changed scheme. */
+    fun setColors(zh: Int, ja: Int, bg: Int) =
+        sp.edit().putInt("colorZh", zh).putInt("colorJa", ja).putInt("colorBg", bg).apply()
+
+    /** The [CaptionOverlayView.Palette] the stored id points at, custom included. */
+    fun paletteOf(): CaptionOverlayView.Palette =
+        if (palette == CaptionColors.CUSTOM_ID) customOf() else CaptionOverlayView.palette(palette)
+
+    fun customOf(): CaptionOverlayView.Palette = CaptionOverlayView.customPalette(colorZh, colorJa, colorBg)
+
     /** Overlay width as a fraction of the screen width */
     var widthFrac: Float
         get() = sp.getFloat("widthFrac", DEFAULT_WIDTH)

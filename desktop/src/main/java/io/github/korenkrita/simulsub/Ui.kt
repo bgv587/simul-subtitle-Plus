@@ -177,8 +177,9 @@ fun Themed(dark: Boolean, content: @Composable () -> Unit) {
 @Composable fun RowScope.Grow() = Spacer(Modifier.weight(1f))
 
 /** a one-line text field in a pill; [password] hides the text */
-@Composable fun Field(value: String, onChange: (String) -> Unit, placeholder: String, password: Boolean = false, enabled: Boolean = true) {
-    Box(Modifier.fillMaxWidth().height(38.dp).background(C.pill, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
+@Composable fun Field(value: String, onChange: (String) -> Unit, placeholder: String, password: Boolean = false,
+                      enabled: Boolean = true, modifier: Modifier = Modifier.fillMaxWidth()) {
+    Box(modifier.height(38.dp).background(C.pill, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
         contentAlignment = Alignment.CenterStart) {
         if (value.isEmpty()) Text(placeholder, color = C.muted, fontSize = 14.sp, maxLines = 1)
         BasicTextField(value, onChange, singleLine = true, enabled = enabled, modifier = Modifier.fillMaxWidth(),

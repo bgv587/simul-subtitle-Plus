@@ -349,8 +349,8 @@ private fun CaptionTab() {
         // wraps onto more lines: a sideways scroll needs a trackpad (a mouse wheel scrolls the page)
         @OptIn(ExperimentalLayoutApi::class)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (p in PALETTES) {
-                val sel = p.id == palette(prefs.palette).id
+            for (p in PALETTES + prefs.customOf()) {
+                val sel = p.id == prefs.paletteOf().id
                 Row(Modifier.height(40.dp).background(C.card, RoundedCornerShape(20.dp))
                     .border(if (sel) 2.dp else 1.dp, if (sel) C.text else C.line, RoundedCornerShape(20.dp))
                     .clickable { prefs.palette = p.id }.padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -361,6 +361,7 @@ private fun CaptionTab() {
                 }
             }
         }
+        if (prefs.palette == CaptionColors.CUSTOM_ID) ColorEditor()
         Label("文字大小  ${Math.round(prefs.textSp.coerceIn(MIN_SP, MAX_SP))}")
         Slider2(Math.round(prefs.textSp.coerceIn(MIN_SP, MAX_SP)).toFloat(), MIN_SP..MAX_SP, (MAX_SP - MIN_SP).toInt() - 1) { prefs.textSp = Math.round(it).toFloat() }
         Label("背景浓淡  ${Math.round(prefs.bgAlpha * 100)}%")
@@ -385,6 +386,62 @@ private fun CaptionTab() {
     Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
         Grow()
         TextBtn("恢复默认") { prefs.resetStyle(); prefs.setOverlay(null, null, null, Prefs.DEFAULT_WIDTH, 0f) }
+    }
+}
+
+/**
+ * The 自定义 chip's editor: three colours to pick or type. The swatch opens Windows' own picker, which edits the RGB
+ * and keeps whatever alpha the colour already had; nothing reaches the captions before 保存, which writes all three at
+ * once. Kept outside the composable, like [ByokDraft], so moving to another tab does not drop what was typed.
+ */
+private class ColorDraft {
+    var zh by mutableStateOf(CaptionColors.hex(prefs.colorZh))
+    var ja by mutableStateOf(CaptionColors.hex(prefs.colorJa))
+    var bg by mutableStateOf(CaptionColors.hex(prefs.colorBg))
+    var msg by mutableStateOf<String?>(null)
+}
+
+private val colorDraft = mutableStateOf(ColorDraft())
+
+@Composable
+private fun ColorEditor() {
+    val d = colorDraft.value
+    ColorRow("译文颜色", d.zh, prefs.colorZh) { d.zh = it; d.msg = null }
+    ColorRow("原文颜色", d.ja, prefs.colorJa) { d.ja = it; d.msg = null }
+    ColorRow("背景颜色", d.bg, prefs.colorBg) { d.bg = it; d.msg = null }
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        d.msg?.let { Text(it, color = C.err, fontSize = 13.sp) }
+        Grow()
+        TextBtn("恢复墨色") {
+            prefs.setColors(CaptionColors.DEFAULT_ZH, CaptionColors.DEFAULT_JA, CaptionColors.DEFAULT_BG)
+            d.zh = CaptionColors.hex(CaptionColors.DEFAULT_ZH)
+            d.ja = CaptionColors.hex(CaptionColors.DEFAULT_JA)
+            d.bg = CaptionColors.hex(CaptionColors.DEFAULT_BG)
+            d.msg = null
+        }
+        Btn("保存", primary = true) {
+            val zh = CaptionColors.parse(d.zh); val ja = CaptionColors.parse(d.ja); val bg = CaptionColors.parse(d.bg)
+            if (zh == null || ja == null || bg == null) d.msg = "写成 6 位（FFFFFF）或 8 位（80FFFFFF）的十六进制"
+            else { prefs.setColors(zh, ja, bg); d.msg = null }
+        }
+    }
+    Hint("草稿行和用时那一行跟着译文颜色自动调暗，不用单独配；背景的深浅用下面的「背景浓淡」。保存后正在显示的字幕立刻跟着变。")
+}
+
+/** one row of [ColorEditor]: the label, the colour as a dot that opens the system picker, and its HEX */
+@Composable
+private fun ColorRow(label: String, text: String, stored: Int, onChange: (String) -> Unit) {
+    val shown = CaptionColors.parse(text) ?: stored
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 14.sp, color = C.text2, modifier = Modifier.width(70.dp))
+        Box(Modifier.size(30.dp).background(Color(shown.toLong() and 0xFFFF_FFFFL), CircleShape)
+            .border(1.dp, Color(0x33888888), CircleShape).clickable {
+                val picked = javax.swing.JColorChooser.showDialog(null, label,
+                    java.awt.Color(shown shr 16 and 0xFF, shown shr 8 and 0xFF, shown and 0xFF))
+                if (picked != null) onChange(CaptionColors.hex(shown and 0xFF00_0000.toInt() or picked.rgb))
+            })
+        Spacer(Modifier.width(10.dp))
+        Field(text, onChange, "FFFFFF", modifier = Modifier.weight(1f))
     }
 }
 
@@ -984,7 +1041,7 @@ private fun AboutSection() {
                 modifier = Modifier.weight(1f)) { checkNow(manual = true) }
             Btn("打开下载页", modifier = Modifier.weight(1f)) { open("$REPO/releases/tag/plus-latest") }
         }
-        Hint("桌面端不会自动安装新版：点「打开下载页」下载 Windows-SimulSub-x64.zip，退出本程序后解压替换即可，设置和 key 都保留。GitHub 项目主页：$REPO")
+        Hint("桌面端不会自动安装新版：点「打开下载页」下载文件名带版本号的 Windows-SimulSub-Plus…-x64.zip，退出本程序后解压替换即可，设置和 key 都保留。GitHub 项目主页：$REPO")
         when (val u = update.value) {
             is Update.Found -> UpdateBox(u.release)
             is Update.Latest -> Hint(if (LOCAL_COMMIT.isEmpty()) "已经是最新版本。" else "已经是最新版本（本机构建 ${LOCAL_COMMIT.take(7)}，和线上一致）。")
@@ -1067,7 +1124,7 @@ private fun UpdateBox(r: Release) {
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Btn("打开下载页", primary = true) { open("$REPO/releases/tag/plus-latest") }
         }
-        Hint("下载页里「Windows-SimulSub-x64.zip」是 Windows 版。先退出本程序，解压后用新的文件夹替换旧的，设置会保留（设置存在 %APPDATA%\\SimulSub，不随程序目录走）。")
+        Hint("下载页里文件名带版本号的「Windows-SimulSub-Plus…-x64.zip」是 Windows 版。先退出本程序，解压后用新的文件夹替换旧的，设置会保留（设置存在 %APPDATA%\\SimulSub，不随程序目录走）。")
     }
 }
 

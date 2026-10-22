@@ -332,6 +332,14 @@
                                 android:importantForAccessibility="no" />
                         </FrameLayout>
 
+                        <!-- DIY: 只有选了「自定义」才出现，三行颜色由代码填 -->
+                        <LinearLayout
+                            android:id="@+id/customColors"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone" />
+
                         <TextView
                             android:id="@+id/labelSize"
                             style="@style/SliderLabel"

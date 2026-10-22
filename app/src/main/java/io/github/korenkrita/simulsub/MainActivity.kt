@@ -1296,12 +1296,45 @@ class MainActivity : Activity() {
         fun updatePaletteFade() { paletteFade.visibility = if (paletteScroll.canScrollHorizontally(1)) View.VISIBLE else View.GONE }
         paletteScroll.setOnScrollChangeListener { _, _, _, _, _ -> updatePaletteFade() }
         val dpx = resources.displayMetrics.density
+        // DIY: 自定义配色的编辑区：色块点开一张常用颜色表，也可以直接写 HEX，点「保存」才生效
+        val colorBox = findViewById<LinearLayout>(R.id.customColors)
+        val PICK_COLORS = intArrayOf(
+            0xFFFFFFFF.toInt(), 0xFFE0E0E0.toInt(), 0xFFF5E6C8.toInt(), 0xFFFFE066.toInt(), 0xFFFFB86C.toInt(), 0xFFFF5A5A.toInt(),
+            0xFFFBCFE8.toInt(), 0xFFFF7BD8.toInt(), 0xFFC4B5FD.toInt(), 0xFF818CF8.toInt(), 0xFFBAE6FD.toInt(), 0xFF60A5FA.toInt(),
+            0xFF67E8F9.toInt(), 0xFFA7F3D0.toInt(), 0xFF4ADE80.toInt(), 0xFFA3E635.toInt(), 0xFFC8A27A.toInt(), 0xFF8B8B94.toInt(),
+            0xFF2B2B31.toInt(), 0xFF111111.toInt(), 0xFFF7F5EF.toInt(), 0xFF0B1726.toInt(), 0xFF0B1F1A.toInt(), 0xFF24101C.toInt(),
+        )
+        fun round(color: Int) = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(color)
+            setStroke((1 * dpx).toInt().coerceAtLeast(1), 0x33888888)
+        }
+        fun swatch(title: String, color: Int, onPick: (Int) -> Unit) = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams((30 * dpx).toInt(), (30 * dpx).toInt()).apply { marginEnd = (10 * dpx).toInt() }
+            background = round(color); contentDescription = title; isClickable = true
+            setOnClickListener {
+                val grid = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding((12 * dpx).toInt(), 0, (12 * dpx).toInt(), 0) }
+                for (line in PICK_COLORS.toList().chunked(6)) {
+                    val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+                    for (c in line) row.addView(View(this@MainActivity).apply {
+                        layoutParams = LinearLayout.LayoutParams((34 * dpx).toInt(), (34 * dpx).toInt())
+                            .apply { setMargins((5 * dpx).toInt(), (5 * dpx).toInt(), (5 * dpx).toInt(), (5 * dpx).toInt()) }
+                        background = round(c); contentDescription = CaptionColors.hex(c); isClickable = true
+                        setOnClickListener { onPick(c) }
+                    })
+                    grid.addView(row)
+                }
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity).setTitle("选$title").setView(grid)
+                    .setNegativeButton("取消", null).show()
+            }
+        }
+        // 真正的定义在 renderPalettes 下面：点 chip 要能立刻刷新这块编辑区，而编辑区的按钮要能重建 chip
+        var renderColors: () -> Unit = {}
         // one chip per palette (magpie's .chip): a round sample of its background and text colour, then its name;
         // the chosen one gets an ink outline
         fun renderPalettes() {
             paletteRow.removeAllViews()
-            for (p in CaptionOverlayView.PALETTES) {
-                val sel = p.id == CaptionOverlayView.palette(prefs.palette).id
+            for (p in CaptionOverlayView.PALETTES + prefs.customOf()) {
+                val sel = p.id == prefs.paletteOf().id
                 paletteRow.addView(LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                     contentDescription = p.label + if (sel) "（已选）" else ""
@@ -1321,10 +1354,60 @@ class MainActivity : Activity() {
                         text = p.label; textSize = 14f
                         setTextColor(getColor(if (sel) R.color.text else R.color.text2))
                     }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = (8 * dpx).toInt() })
-                    setOnClickListener { prefs.palette = p.id; renderPalettes(); preview.setColors(p) }
+                    setOnClickListener { prefs.palette = p.id; renderPalettes(); preview.setColors(prefs.paletteOf()) }
                 }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = (8 * dpx).toInt() })
             }
+            renderColors() // 选中「自定义」时要立刻展开那三行
             paletteScroll.post { updatePaletteFade() } // the row's real width is known only after this layout pass
+        }
+        renderColors = {
+            colorBox.removeAllViews()
+            val custom = prefs.palette == CaptionColors.CUSTOM_ID
+            colorBox.visibility = if (custom) View.VISIBLE else View.GONE
+            if (custom) {
+                fun rowOf(title: String, stored: Int): android.widget.EditText {
+                    colorBox.addView(label(title))
+                    val input = android.widget.EditText(this).apply {
+                        hint = "FFFFFF"; isSingleLine = true; textSize = 16f
+                        setText(CaptionColors.hex(stored)); setTextColor(getColor(R.color.text))
+                        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                    }
+                    val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                    line.addView(swatch(title, stored) { c -> input.setText(CaptionColors.hex(c)) })
+                    line.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    colorBox.addView(line)
+                    return input
+                }
+                val zh = rowOf("译文颜色", prefs.colorZh)
+                val ja = rowOf("原文颜色", prefs.colorJa)
+                val bg = rowOf("背景颜色", prefs.colorBg)
+                val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
+                buttons.addView(MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                    text = "恢复墨色"; textSize = 16f
+                    setOnClickListener {
+                        prefs.setColors(CaptionColors.DEFAULT_ZH, CaptionColors.DEFAULT_JA, CaptionColors.DEFAULT_BG)
+                        renderPalettes()
+                    }
+                })
+                buttons.addView(MaterialButton(this).apply {
+                    text = "保存"; textSize = 16f
+                    setOnClickListener {
+                        val z = CaptionColors.parse(zh.text.toString())
+                        val j = CaptionColors.parse(ja.text.toString())
+                        val b = CaptionColors.parse(bg.text.toString())
+                        if (z == null || j == null || b == null)
+                            Toast.makeText(this@MainActivity, "颜色写成 6 位（FFFFFF）或 8 位（80FFFFFF）的十六进制", Toast.LENGTH_LONG).show()
+                        else {
+                            prefs.setColors(z, j, b)
+                            preview.setColors(prefs.paletteOf())
+                            Toast.makeText(this@MainActivity, "已保存，字幕立刻跟着变", Toast.LENGTH_SHORT).show()
+                            renderPalettes()
+                        }
+                    }
+                })
+                colorBox.addView(buttons)
+                colorBox.addView(hint("草稿行和用时那一行会跟着译文颜色自动调暗，不用单独配；背景是实色，深浅用下面的「背景浓淡」。正在显示的字幕保存后立刻生效。"))
+            }
         }
 
         var loading = false // programmatic updates must not be written back
@@ -1356,7 +1439,7 @@ class MainActivity : Activity() {
             findViewById<TextView>(R.id.sizeSummary).text = "宽 ${width.value.toInt()}% · 高 " +
                 (if (prefs.heightFrac <= 0f) "自动" else "${Math.round(prefs.heightFrac * 100)}%") +
                 " · 至少留 ${keepS.value.toInt()} 句 · ${keepC.value.toInt()} 字"
-            preview.setColors(CaptionOverlayView.palette(prefs.palette))
+            preview.setColors(prefs.paletteOf())
             preview.applyStyle(size.value, shownAlpha)
             // same caption height as the overlay will get (the stage grows with it)
             preview.setMaxContentHeight((resources.displayMetrics.heightPixels * CaptionService.MAX_CAPTION_FRAC).toInt(), Int.MAX_VALUE)
@@ -1436,7 +1519,8 @@ class MainActivity : Activity() {
         var manualCheckStopped = false
         const val REQ_START = 1      // runtime permission asked on the way to starting subtitles
         const val REQ_PROJECTION = 2
-        val STYLE_KEYS = setOf("textSp", "bgAlpha", "widthFrac", "heightFrac", "showJa", "showStats", "keepSentences", "keepChars", "palette")
+        val STYLE_KEYS = setOf("textSp", "bgAlpha", "widthFrac", "heightFrac", "showJa", "showStats", "keepSentences", "keepChars", "palette",
+            "colorZh", "colorJa", "colorBg")
         const val REQ_PERM_ONLY = 3  // "去开启" in the permission list: grant only, never start
         const val LOGS_BEFORE_SCROLL = 5
         /** where the project lives (set by the author; the repository may not be public yet) */

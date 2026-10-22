@@ -50,6 +50,7 @@
 | `SessionLog.kt` | 会话使用记录（JSONL）后台异步写入，采用 `.part` 临时文件并在正常结束时原子转正 |
 | `ServiceStatus.kt` | 运行时状态与错误提示定义 |
 | `SetupOrder.kt` | 首次启动与配置引导顺序判定 |
+| `CaptionColors.kt` | 自定义字幕配色的共用规则：HEX 解析与回显、草稿色与统计色按译文色推导、深色字不描阴影 |
 
 ### 2. Android 客户端（`app/src/main/java/io/github/korenkrita/simulsub/`）
 

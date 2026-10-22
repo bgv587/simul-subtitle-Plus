@@ -79,6 +79,17 @@ val PALETTES = listOf(
 )
 fun palette(id: String?) = PALETTES.firstOrNull { it.id == id } ?: PALETTES[0]
 
+/**
+ * The user's own scheme: they set the caption, the source text and the card; the draft and the timing line follow the
+ * caption colour into it (see [CaptionColors]), so a hand-picked set cannot make a draft look as final as a sentence.
+ */
+fun customPalette(zh: Int, ja: Int, bg: Int) = Palette(CaptionColors.CUSTOM_ID, CaptionColors.CUSTOM_LABEL,
+    argb(zh), argb(ja), argb(CaptionColors.draft(zh, bg)), argb(CaptionColors.stats(zh, bg)), argb(bg),
+    shadow = CaptionColors.shadow(zh))
+
+/** [Palette] keeps ARGB in a Long: an Int's sign bit must not reach the upper half of it */
+private fun argb(color: Int) = color.toLong() and 0xFFFF_FFFFL
+
 const val MIN_SP = 5f
 const val MAX_SP = 36f
 /** The phone's sp → points on the desktop: the same number reads about as large at a desk as on the phone in the hand. */
@@ -130,7 +141,7 @@ fun CaptionCard(
     slides: Boolean = false, keepsBottom: Boolean = false,
     corners: (@Composable androidx.compose.foundation.layout.BoxScope.(Color) -> Unit)? = null,
 ) {
-    val p = palette(prefs.palette)
+    val p = prefs.paletteOf()
     val family = CaptionFonts.family(prefs.captionFont)
     val size = prefs.textSp.coerceIn(MIN_SP, MAX_SP) * SP_SCALE
     val alpha = prefs.bgAlpha
