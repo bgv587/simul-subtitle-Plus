@@ -1,9 +1,5 @@
+# 同声传译（Plus版）
 Plus版，基于 J1nxi-youmi/simul-subtitle-diy
-
-# 同声传译（diy版）
-
-个人自用的实时字幕，**安卓 + Windows 双端**，两端功能一致、同一次推送一起构建。
-基于 [KorenKrita/simul-subtitle](https://github.com/KorenKrita/simul-subtitle) 修改。
 
 ## 下载
 
