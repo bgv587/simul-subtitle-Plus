@@ -123,7 +123,10 @@ fun app() = application {
     LaunchedEffect(Unit) { while (true) { delay(5_000); trayDark = taskbarDark() } }
 
     Tray(icon = TrayIcon(running, trayDark), tooltip = "同传字幕", menu = {
-        if (running) Item("停止字幕", onClick = { CaptionService.stop() })
+        if (running) {
+            if (!CaptionService.endedState.value) Item(if (CaptionService.pausedState.value) "继续字幕" else "暂停字幕", onClick = { CaptionService.togglePause() })
+            Item("停止字幕", onClick = { CaptionService.stop() })
+        }
         else Item("开始字幕", onClick = { startError = startCaptions(); if (startError != null) mainOpen = true })
         Item("打开同传字幕", onClick = { mainOpen = true })
         Separator()
@@ -212,6 +215,7 @@ private fun MainScreen(startError: String?, setStartError: (String?) -> Unit) {
 private fun Home(startError: String?, setStartError: (String?) -> Unit, openTranslate: () -> Unit) {
     val running by CaptionService.runningState
     val ended by CaptionService.endedState
+    val paused by CaptionService.pausedState
     Text("把视频、直播里的声音，实时变成字幕", color = C.text2, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
     /** the language name being typed for 其他; null while that editor is closed */
     var typing by remember { mutableStateOf<String?>(null) }
@@ -229,7 +233,8 @@ private fun Home(startError: String?, setStartError: (String?) -> Unit, openTran
         val ready = prefs.byokReady
         when {
             running && ended -> status(C.warn, "字幕已经停了", "原因写在字幕框里。点下面的按钮关掉它，然后可以重新开始。")
-            running -> status(C.ok, "字幕正在显示", "回到你要看的视频或直播就行。\n点一下字幕，可以调大小或停止；关掉这个窗口字幕也会继续，任务栏右下角的图标里可以停止。")
+            running && paused -> status(C.warn, "字幕已暂停", "声音不再识别，字幕窗口保留。点「继续字幕」接着出字幕。")
+            running -> status(C.ok, "字幕正在显示", "回到你要看的视频或直播就行。\n点一下字幕，可以调大小、暂停或停止；关掉这个窗口字幕也会继续，任务栏右下角的图标里可以停止。")
             !ready -> status(C.warn, "先填翻译用的 LLM API", "填好服务地址、模型 ID 和 API Key，点「测试连接」，就能开始。声音识别已经装在 App 里，不用下载。")
             startError != null -> status(C.err, "还不能开始", startError)
             else -> status(C.brand, "可以开始了", "点下面的按钮开始。")
@@ -272,11 +277,15 @@ private fun Home(startError: String?, setStartError: (String?) -> Unit, openTran
         Spacer(Modifier.height(12.dp))
         when {
             running && ended -> Btn("关掉字幕", modifier = Modifier.fillMaxWidth()) { CaptionService.stop() }
-            running -> bigButton(C.errSoft, { CaptionService.stop() }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(12.dp).background(C.err, RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(10.dp)); Text("停止字幕", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            running -> {
+                bigButton(C.errSoft, { CaptionService.stop() }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(12.dp).background(C.err, RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(10.dp)); Text("停止字幕", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
+                Spacer(Modifier.height(8.dp))
+                Btn(if (paused) "▶  继续字幕" else "⏸  暂停字幕", modifier = Modifier.fillMaxWidth()) { CaptionService.togglePause() }
             }
             !ready -> bigButton(C.brand, openTranslate) { Text("去填写", color = C.onBrand, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             else -> bigButton(C.brand, { setStartError(startCaptions()) }) {
@@ -866,9 +875,10 @@ private fun LogsTab() {
     LaunchedEffect(Unit) { while (true) { delay(3_000); tick++ } }
     tick.let { }
     Group("导出会议记录") {
+        val paused by CaptionService.pausedState
         val sessions = MeetingTranscript.sessions()
         if (sessions.isEmpty()) {
-            Hint("还没有字幕记录。每次开始字幕会记一段，停止后再开始就是新的一段；说完的句子会随时记在这里，结束或进行中都可以导出。")
+            Hint("还没有字幕记录。每次开始字幕会记一段，停止后再开始就是新的一段（暂停再继续仍算同一段）；说完的句子会随时记在这里，结束或进行中都可以导出。")
         } else {
             var picked by remember { mutableStateOf<Long?>(null) }
             // the newest segment, unless the user picked an older one from the list
@@ -877,7 +887,7 @@ private fun LogsTab() {
                 Label("会议记录")
                 val labels = sessions.mapIndexed { i, s ->
                     "第 ${i + 1} 段 · " + s.startedAt.format(SEGMENT_TIME) + " · " + s.lines.size + " 句" +
-                        if (s.active) " · 记录中" else ""
+                        if (s.active) (if (paused) " · 暂停中" else " · 记录中") else ""
                 }
                 Dropdown(labels, sessions.indexOfFirst { it.id == snap.id }.coerceAtLeast(0)) { picked = sessions[it].id }
             }
@@ -885,7 +895,7 @@ private fun LogsTab() {
             var exportMsg by remember(snap.id) { mutableStateOf<String?>(null) }
             var exported by remember(snap.id) { mutableStateOf<File?>(null) }
             val formats = TranscriptFormat.entries
-            Text((if (snap.active) "这一段还在记录" else "这一段已结束") + " · " +
+            Text((if (!snap.active) "这一段已结束" else if (paused) "这一段暂停中，继续后接着记录" else "这一段还在记录") + " · " +
                 snap.startedAt.format(EXPORT_TIME) + " · " + TranscriptExport.duration(snap.durationMs) + " · " + snap.lines.size + " 句",
                 fontSize = 14.sp)
             Label("会议标题")

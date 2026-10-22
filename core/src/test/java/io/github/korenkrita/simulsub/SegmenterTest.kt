@@ -74,6 +74,63 @@ class SegmenterTest {
     }
 
     @Test
+    fun theSilenceAfterAForcedCutCountsTowardsTheNextPause() {
+        // 4.5 s speech, 320 ms pause, 2 s speech, silence: the 7 s cut lands in the pause, so the next segment starts
+        // with silence; it must count, or the trailing silence is overcounted and the next final comes late
+        val jobs = ArrayList<AsrJob>()
+        val emittedAt = ArrayList<Int>()
+        val s = Segmenter({ jobs.add(it); if (it.isFinal) emittedAt.add(fed) }, maxUtteranceMs = 7_000, endSilenceMs = 400)
+        feed(listOf(true to 4512, false to 320, true to 1952, false to 1000), s)
+        val finals = jobs.filter { it.isFinal }
+        assertEquals(2, finals.size)
+        assertEquals(147, frameIds(finals[0]).last())
+        // speech ends at 212: the final keeps ~100 ms (3 frames) of it and is sent once 400 ms of silence are seen
+        assertEquals((148..215).toList(), frameIds(finals[1]))
+        assertEquals(225, emittedAt[1])
+    }
+
+    @Test
+    fun aForcedCutLeavingOnlySilenceEndsTheUtterance() {
+        // the 7 s cut comes in the silence after the speech: no second segment of pure silence goes to recognition
+        val jobs = ArrayList<AsrJob>()
+        val s = Segmenter(jobs::add, maxUtteranceMs = 7_000, endSilenceMs = 400)
+        feed(listOf(true to 6784, false to 3000), s)
+        s.flush()
+        assertEquals(1, jobs.count { it.isFinal })
+    }
+
+    @Test
+    fun theSilenceLeftByAForcedCutLeadsTheNextUtterance() {
+        // the 7 s cut lands in a short pause just before the speaker goes on: that silence is not dropped
+        val jobs = ArrayList<AsrJob>()
+        val s = Segmenter(jobs::add, maxUtteranceMs = 7_000, endSilenceMs = 400)
+        feed(listOf(true to 6784, false to 224, true to 1024, false to 1000), s)
+        val ids = jobs.filter { it.isFinal }.flatMap(::frameIds)
+        assertEquals(2, jobs.count { it.isFinal })
+        assertEquals("no frame lost between the two", (1..ids.last()).toList(), ids)
+    }
+
+    @Test
+    fun afterAFlushTheNextUtteranceHasNoAudioFromBefore() {
+        // a pause flushes, drops audio, then goes on: the silence heard before the flush is not the next one's pre-roll
+        val jobs = ArrayList<AsrJob>()
+        val s = Segmenter(jobs::add)
+        feed(listOf(false to 640), s)
+        val before = fed
+        s.flush()
+        feed(listOf(true to 1024, false to 800), s)
+        assertTrue(frameIds(jobs.single { it.isFinal }).none { it <= before })
+    }
+
+    private var fed = 0
+    private fun feed(pattern: List<Pair<Boolean, Int>>, seg: Segmenter) {
+        for ((speech, ms) in pattern) repeat(ms / 32) {
+            fed++
+            seg.accept(FloatArray(frame) { fed.toFloat() }, if (speech) 0.9f else 0.1f, fed * 32L)
+        }
+    }
+
+    @Test
     fun forcedCutWithoutPauseAlsoLosesNothing() {
         val jobs = ArrayList<AsrJob>()
         val s = Segmenter(jobs::add, maxUtteranceMs = 3000)

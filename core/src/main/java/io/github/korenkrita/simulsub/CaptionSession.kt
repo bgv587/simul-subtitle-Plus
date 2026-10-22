@@ -178,6 +178,18 @@ class CaptionSession(private val host: SessionHost) {
     @Volatile private var status = "正在准备…"
     /** the session ended by itself (overload, error, capture lost): the window stays with its last message */
     @Volatile var ended = false; private set
+    /**
+     * Paused by the user: the audio keeps coming and is dropped before the VAD, so the models, the log and the window
+     * stay and a resume needs no reload. The sentence being spoken when it pauses is finished as it stands.
+     */
+    @Volatile var paused = false; private set
+
+    /** UI thread. */
+    fun setPaused(p: Boolean) {
+        if (ended || paused == p) return // an ended session has nothing to pause or resume
+        paused = p
+        refresh()
+    }
 
     /** UI thread. */
     fun start() {
@@ -509,7 +521,7 @@ class CaptionSession(private val host: SessionHost) {
             host.logInfo("session released")
             // the captions and the reason stay until the user ends them (✕, the menu bar or the home screen)
             // (a stop that came during the drain or the teardown ends it as the user wanted)
-            if (keepOverlay && !stopping) { ended = true; host.ended() }
+            if (keepOverlay && !stopping) { ended = true; paused = false; host.ended() }
             else if (!keepOverlay && !stopping) main.post { if (!stopping) host.finished() }
         }
     }
@@ -543,6 +555,7 @@ class CaptionSession(private val host: SessionHost) {
             var framesRead = 0L
             var statSq = 0.0; var statN = 0; var statMaxP = 0f
             var first = true
+            var wasPaused = false
             while (!stopping && !overloaded && !failed) {
                 val capturedAt = src.read(frame)
                 if (capturedAt < 0) break // stopped, or the audio ended by itself
@@ -552,6 +565,12 @@ class CaptionSession(private val host: SessionHost) {
                     audioStartAt = capturedAt - frame.size * 1000L / 16_000
                     setStatus("") // audio arrives: the capture is running
                 }
+                if (paused != wasPaused) {
+                    wasPaused = paused
+                    if (wasPaused) seg.flush()
+                    log?.write(mapOf("ev" to if (wasPaused) "pause" else "resume"))
+                }
+                if (wasPaused) continue
                 val f = frame.copyOf()
                 framesRead += f.size
                 val prob = models.vadProb(f)
@@ -610,6 +629,8 @@ class CaptionSession(private val host: SessionHost) {
         // status messages (loading, errors, overload) always show; timings only when enabled in settings
         val diag = buildString {
             if (status.isNotEmpty()) append(status)
+            // with no caption yet the placeholder line says it already
+            if (paused && status.isEmpty() && lines.isNotEmpty()) append("⏸ 已暂停")
             if (notice.isNotEmpty()) append("${if (isNotEmpty()) "  ·  " else ""}$notice")
             if (logWarned) append("${if (isNotEmpty()) "  ·  " else ""}⚠ 日志写入失败，本次日志不完整")
             // a failing service stays shown, also with timings off; one that works says nothing here
@@ -631,7 +652,7 @@ class CaptionSession(private val host: SessionHost) {
         val jevNow = jevNow()
         val jevOn = jevEndsOn || jevCheckOn
         val clock = host.clock(); val wall = System.currentTimeMillis()
-        host.show(if (lines.isEmpty() && status.isEmpty()) listOf(CaptionLine("正在听…", null, false)) else lines,
+        host.show(if (lines.isEmpty() && status.isEmpty()) listOf(CaptionLine(if (paused) "已暂停" else "正在听…", null, false)) else lines,
             diag.ifEmpty { null }, light(mtState, true), light(jevNow, jevOn),
             mtState?.let { reason(it, false, clock, wall) },
             if (jevOn) jevNow?.let { reason(it, true, clock, wall) } else "未开启")

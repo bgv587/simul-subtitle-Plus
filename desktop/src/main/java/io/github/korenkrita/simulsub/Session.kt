@@ -120,7 +120,7 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
         overlay.mtReason.value = mtReason; overlay.jevReason.value = jevReason
     }
     override fun onFinalCaption(line: TranscriptLine) = MeetingTranscript.add(line)
-    override fun ended() = post { if (current === this) endedState.value = true }
+    override fun ended() = post { if (current === this) { endedState.value = true; pausedState.value = false } }
     override fun finished() { if (current === this) stop() }
 
     /** Settings changed in the main window while subtitles run; the look itself is read by the window directly. */
@@ -153,22 +153,29 @@ class CaptionService private constructor(private val sysaudio: File) : SessionHo
         /** Compose mirrors of [current] != null and of [ended], for the home screen and the menu bar */
         val runningState = mutableStateOf(false)
         val endedState = mutableStateOf(false)
+        /** the session on screen is paused (see [CaptionSession.paused]) */
+        val pausedState = mutableStateOf(false)
         val running: Boolean get() = current != null
 
         /** UI thread. A session that ended by itself (its message still shown) is replaced. */
         fun start(sysaudio: File) {
             current?.let { if (it.ended) stop() else return }
             val s = CaptionService(sysaudio)
-            current = s; runningState.value = true; endedState.value = false
+            current = s; runningState.value = true; endedState.value = false; pausedState.value = false
             s.prefs.listen(s.prefListener)
             s.beginTranscript()
             s.session.start()
         }
 
         /** UI thread. */
+        fun togglePause() {
+            val s = current ?: return
+            s.session.setPaused(!s.session.paused); pausedState.value = s.session.paused
+        }
+        /** UI thread. */
         fun stop() {
             val s = current ?: return
-            current = null; runningState.value = false; endedState.value = false
+            current = null; runningState.value = false; endedState.value = false; pausedState.value = false
             s.prefs.unlisten(s.prefListener)
             s.session.stop()
             MeetingTranscript.end()
