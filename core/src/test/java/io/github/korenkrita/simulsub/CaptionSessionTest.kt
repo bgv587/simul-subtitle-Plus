@@ -56,6 +56,7 @@ class CaptionSessionTest {
     private inner class FakePrefs : SessionPrefs {
         override val jevOn = false
         override val jevCheck = false
+        override val jevCheckJev = false
         override val keepLogs = false
         override val keepSentences = CaptionBoard.DEFAULT_SENTENCES
         override val keepChars = CaptionBoard.DEFAULT_CHARS

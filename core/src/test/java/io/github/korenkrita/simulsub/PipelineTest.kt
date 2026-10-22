@@ -500,10 +500,11 @@ class PipelineTest {
     }
 
     private fun runFinal(judge: Judge, events: MutableList<Map<String, Any?>> = Collections.synchronizedList(ArrayList()),
-                         mt: FakeMt = FakeMt(1), check: Boolean = true): List<Caption> {
+                         mt: FakeMt = FakeMt(1), check: Boolean = true, endsJudge: Judge? = judge): List<Caption> {
         val out = Collections.synchronizedList(ArrayList<Caption>())
         val done = CountDownLatch(1)
-        val p = Pipeline(FakeAsr(), mt, { out.add(it); if (it.isFinal) done.countDown() }, judge = judge, checkTranslations = check, log = { events.add(it) })
+        val p = Pipeline(FakeAsr(), mt, { out.add(it); if (it.isFinal) done.countDown() }, judge = judge, endsJudge = endsJudge,
+            checkTranslations = check, log = { events.add(it) })
         p.start()
         p.submit(job(1, 3, true, 10))
         assertTrue(done.await(3, TimeUnit.SECONDS)); p.stop(); p.awaitStopped()
@@ -897,6 +898,44 @@ class PipelineTest {
         // segment 1 had no context on its first translation, so its retry has none either
         val retry1 = mt.calls.first { it.contains(FIX_NOTES["negation"]!!) && source(it) == "ja10" }
         assertTrue(retry1, !retry1.contains(ctx))
+    }
+
+    @Test
+    fun endsAndCheckCanUseDifferentJudges() {
+        val ends = FakeJudge(unfinishedP = 0.9)
+        val check = FakeJudge(choice = "ok")
+        val p = Pipeline(FakeAsr(), FakeMt(1), {}, judge = check, endsJudge = ends, checkTranslations = true)
+        p.start()
+        try {
+            assertTrue(p.judged(1))
+            p.submit(AsrJob(1, 2, false, FloatArray(10), monoMs(), endOfSpeech = true))
+            val deadline = monoMs() + 2000
+            while (p.holdHint(1, 2) == null && monoMs() < deadline) Thread.sleep(5)
+            assertEquals(true, p.holdHint(1, 2))
+        } finally { p.stop(); p.awaitStopped() }
+        assertTrue(ends.asked.toString(), ends.asked.any { it.startsWith("u:") })
+        assertTrue(ends.asked.toString(), ends.asked.none { it.startsWith("m:") })
+        assertTrue(check.asked.toString(), check.asked.none { it.startsWith("u:") })
+    }
+
+    @Test
+    fun withoutAnEndsJudgePausesDecideAndTheCheckStillRuns() {
+        val check = FakeJudge(choice = "ok")
+        val p = Pipeline(FakeAsr(), FakeMt(1), {}, judge = check, endsJudge = null, checkTranslations = true)
+        p.start()
+        try {
+            assertFalse(p.judged(1))
+            p.submit(AsrJob(1, 2, false, FloatArray(10), monoMs(), endOfSpeech = true))
+            val deadline = monoMs() + 2000
+            while (p.holdHint(1, 2) == null && monoMs() < deadline) Thread.sleep(5)
+            assertEquals(false, p.holdHint(1, 2))
+        } finally { p.stop(); p.awaitStopped() }
+        assertTrue(check.asked.toString(), check.asked.none { it.startsWith("u:") })
+        // a final is still checked by the check judge
+        val mt = FakeMt(1)
+        val out = runFinal(check, mt = mt, endsJudge = null)
+        assertEquals("zh(ja10)", out.last { it.isFinal }.zh)
+        assertTrue(check.asked.toString(), check.asked.any { it.startsWith("m:") })
     }
 
     @Test

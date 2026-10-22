@@ -135,8 +135,13 @@ class Setup(
     /** null = auto (Japanese or English) */
     val source: Lang? = Lang.JA,
     val target: Target = Target.ZH,
-    /** null: no Jev for this setup (not configured, or paused because its key is missing) */
+    /** The judge that checks translations; null: no check for this setup (not configured, or its key is missing). */
     val judge: Judge? = null,
+    /**
+     * The judge asked "unfinished?" at sentence ends; defaults to [judge] (one Jev client for both switches).
+     * Null with [judge] set: translations are checked, sentence ends go by pauses only.
+     */
+    val endsJudge: Judge? = judge,
     val dedupeJoin: Boolean = false,
     /** finished sentences given as context; 0 = none */
     val previousSentences: Int = Pipeline.PREVIOUS_SENTENCES,
@@ -185,7 +190,9 @@ class Pipeline(
      * error classes in [FIX_NOTES], translated again with the matching note. Any failure keeps the first translation.
      */
     private val judge: Judge? = null,
-    /** Ask [judge] at sentence-end candidates (the "unfinished?" question). Default on, as before the check switch. */
+    /** The judge for sentence ends; defaults to [judge]. See [Setup.endsJudge]. */
+    private val endsJudge: Judge? = judge,
+    /** Ask [endsJudge] at sentence-end candidates (the "unfinished?" question). Default on, as before the check switch. */
     private val judgeEnds: Boolean = true,
     /**
      * Where a kept draft and the recognition of the audio after it are joined, drop a repeat of the kept end at the
@@ -209,7 +216,7 @@ class Pipeline(
     private class MtJob(val q: Queued, val ja: String, val asrStartAt: Long, val asrEndAt: Long, val setup: Setup)
 
     /** The setup new segments take; see [Setup]. The constructor's settings are the first one. */
-    @Volatile private var current = Setup(mt, scene, source, target, judge, dedupeJoin, previousSentences, setupVersion)
+    @Volatile private var current = Setup(mt, scene, source, target, judge, endsJudge, dedupeJoin, previousSentences, setupVersion)
     /** Every setup a pipeline worker may still call (current + those of segments in flight), so [stop] cancels all. */
     private val live: MutableSet<Setup> = java.util.concurrent.ConcurrentHashMap.newKeySet<Setup>().apply { add(current) }
     /** The setup each recent segment took (ASR thread writes, MT / check threads read through their jobs). */
@@ -228,8 +235,13 @@ class Pipeline(
             live.add(s)
             current = s
         }
-        if (!running) { s.mt.cancel(); s.judge?.cancel() } // stop() ran meanwhile and did not see it
+        if (!running) { s.mt.cancel(); cancelJudges(s) } // stop() ran meanwhile and did not see it
         return true
+    }
+    /** Cancels a setup's judges; one client serving both switches is cancelled once. */
+    private fun cancelJudges(s: Setup) {
+        s.judge?.cancel()
+        if (s.endsJudge !== s.judge) s.endsJudge?.cancel()
     }
     /**
      * The setup of [seg], fixed by whichever asks first: the audio thread when the utterance starts ([judged]) or the
@@ -257,7 +269,7 @@ class Pipeline(
      * the same one and a change while it is spoken, or while ASR is behind, applies from the next utterance.
      */
     fun judged(segmentId: Long): Boolean {
-        val j = setupOf(segmentId).judge // setup fixed first, always
+        val j = setupOf(segmentId).endsJudge // setup fixed first, always
         // limited by the service (429): cut by pauses as without Jev, nothing is asked until the pause ends
         return j != null && judgeEnds && j.paused() == null
     }
@@ -272,7 +284,7 @@ class Pipeline(
         // the segment's own judge limited since this answer's request went out (also a pause already over), or now:
         // finished, over an earlier "hold"
         val (hold, gen) = hints[segmentId to revision] ?: (null to -1)
-        val j = segSetup[segmentId]?.judge
+        val j = segSetup[segmentId]?.endsJudge
         val h = if (j != null && (j.paused() != null || j.limitedAfter(gen))) false else hold ?: return null
         // the segmenter asks on every frame: log only the first read, which is when the answer took effect
         if (hintsUsed.add(segmentId to revision)) log(mapOf("ev" to "hint_used", "seg" to segmentId, "rev" to revision, "hold" to h))
@@ -300,8 +312,8 @@ class Pipeline(
         threads = listOfNotNull(
             Thread(guarded(::asrLoop), "jpsub-asr"),
             Thread(guarded(::mtLoop), "jpsub-mt"),
-            // The session switches decide whether these run at all (both are fixed for the session); a setup without
-            // a judge (its key is missing for now) simply finds nothing to ask and pauses the feature.
+            // The session switches decide whether these run at all (both are fixed for the session); a setup whose
+            // endsJudge is null (sentence ends by pauses) simply finds nothing to ask and pauses the feature.
             if (judgeEnds) Thread(guarded(::judgeLoop), "jpsub-jev") else null,
             if (checkTranslations) Thread(guarded(::checkLoop), "jpsub-check") else null,
         ).onEach { it.start() }
@@ -310,7 +322,7 @@ class Pipeline(
     /** Non-blocking. Results produced after this call are discarded. */
     fun stop() {
         synchronized(lock) { running = false }
-        live.forEach { it.mt.cancel(); it.judge?.cancel() }
+        live.forEach { it.mt.cancel(); cancelJudges(it) }
         threads.forEach { it.interrupt() }
     }
 
@@ -479,7 +491,7 @@ class Pipeline(
                 // nothing recognised = nothing to wait for; otherwise ask, replacing an older question not yet sent.
                 // No judge in this segment's setup (key missing for now) or one the service limited: no question,
                 // the segmenter cuts at once as without Jev instead of waiting for an answer that never comes
-                if (ja.isEmpty() || setup.judge == null || setup.judge.paused() != null) hints[job.segmentId to job.revision] = false to -1
+                if (ja.isEmpty() || setup.endsJudge == null || setup.endsJudge.paused() != null) hints[job.segmentId to job.revision] = false to -1
                 else pendingJudge.set(Triple(job, ja, setup))
             }
             synchronized(lock) {
@@ -541,7 +553,7 @@ class Pipeline(
     private fun judgeLoop() {
         while (running && !failed) {
             val (job, ja, setup) = pendingJudge.getAndSet(null) ?: run { Thread.sleep(10); null } ?: continue
-            val judge = setup.judge ?: continue
+            val judge = setup.endsJudge ?: continue
             val call = judge.unfinished(ja)
             if (!running) { logJev("unfinished", job.segmentId, job.revision, call, "stopped"); return }
             reportJev(call, judge, setup)
@@ -644,7 +656,8 @@ class Pipeline(
         val call = judge.mistranslation(j.ja, zh) // limited: returns at once without asking, the translation is kept
         judgeMs(clock() - c0) // the Jev call only; a retranslation below is translation time
         if (!running) { logJev("mistranslation", job.segmentId, job.revision, call, "stopped"); return zh }
-        reportJev(call, judge, j.setup)
+        // the overlay's second light is Jev's: a check on the user's own LLM says nothing about it
+        if (judge is Jev) reportJev(call, judge, j.setup)
         // limited meanwhile (this answer may be an older request's): the translation is kept, nothing is retried
         val note = call.choice?.takeIf { call.limit == null && judge.paused() == null && !judge.limitedAfter(call.gen) }
             ?.let { fixNote(it, j.setup.source, j.setup.target) }?.takeIf { (call.confidence ?: 0.0) >= FIX_MIN_CONFIDENCE }

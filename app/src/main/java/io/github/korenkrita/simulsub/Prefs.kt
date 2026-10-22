@@ -191,6 +191,10 @@ class Prefs(ctx: Context) : SessionPrefs {
     override var jevCheck: Boolean
         get() = sp.getBoolean("jevCheck", false)
         set(v) = sp.edit().putBoolean("jevCheck", v).apply()
+    /** Check translations with Jev (keyless free Zen by default) instead of the user's own LLM. Off by default. */
+    override var jevCheckJev: Boolean
+        get() = sp.getBoolean("jevCheckJev", false)
+        set(v) = sp.edit().putBoolean("jevCheckJev", v).apply()
     /** Drop a repeat at the join of a kept draft and the rest (Pipeline.dedupeJoin). Off by default. */
     override var dedupeJoin: Boolean
         get() = sp.getBoolean("dedupeJoin", false)

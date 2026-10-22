@@ -117,11 +117,7 @@ jobs:
           gh release view plus-latest >/dev/null 2>&1 \
             || gh release create plus-latest --title "最新构建" --notes "首次创建" --latest
           gh release upload plus-latest "dist/$APKNAME" update.json --clobber
-          # 只留这一版：以前的无版本号包、更早的版本包都删掉，滚动 release 不会越攒越大
-          gh release view plus-latest --json assets -q '.assets[].name' > /tmp/assets.txt || true
-          grep -E '^(app-debug|SimulSub-Plus[0-9]+)\.apk$' /tmp/assets.txt | grep -v "^$APKNAME$" | while read -r a; do
-            gh release delete-asset plus-latest "$a" --yes && echo "已删除旧包 $a"
-          done || true
+          # 旧包一律留着：滚动 release 只覆盖同名文件和 update.json，以前版本的 apk 仍可下载
           # 把 plus-latest 移到这次提交：否则 release 页显示的 commit 还停在第一次创建时
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/plus-latest" -f "sha=$GITHUB_SHA" -F "force=true" >/dev/null
           {

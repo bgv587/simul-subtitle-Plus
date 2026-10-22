@@ -116,6 +116,8 @@ class Prefs internal constructor(private val file: File) : SessionPrefs {
         set(v) = put("scene" to v.id)
     override var jevOn: Boolean get() = bool("jevOn", false); set(v) = put("jevOn" to v)
     override var jevCheck: Boolean get() = bool("jevCheck", false); set(v) = put("jevCheck" to v)
+    /** Check translations with Jev (keyless free Zen by default) instead of the user's own LLM. */
+    override var jevCheckJev: Boolean get() = bool("jevCheckJev", false); set(v) = put("jevCheckJev" to v)
     override var dedupeJoin: Boolean get() = bool("dedupeJoin", false); set(v) = put("dedupeJoin" to v)
     override var keepLogs: Boolean get() = bool("keepLogs", false); set(v) = put("keepLogs" to v)
     /** 记录 › 导出会议记录: the last format and what the file includes */

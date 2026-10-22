@@ -8,8 +8,11 @@ import java.io.File
 
 /** The settings a session reads; the app's and the desktop's Prefs. */
 interface SessionPrefs {
+    /** DIY: 断句在停顿处问 Jev 云端「这句说完了吗」；关 = 只按停顿切。 */
     val jevOn: Boolean
     val jevCheck: Boolean
+    /** DIY: 译文检查走 Jev 云端（免 key），而不是用户自己的 LLM。 */
+    val jevCheckJev: Boolean
     val keepLogs: Boolean
     val keepSentences: Int
     val keepChars: Int
@@ -204,11 +207,12 @@ class CaptionSession(private val host: SessionHost) {
         var log: SessionLog? = null
         var keepOverlay = false
         try {
-            // Fixed for the whole session (the home screen disables them while running): the two Jev switches.
+            // Fixed for the whole session (the home screen disables them while running): the Jev switches.
             // Everything else a sentence is translated with is a [Setup], rebuilt when it changes (below).
-            // DIY: 断句不再交给 Jev（那个选项已从界面移除），只保留它的译文检查
-            val jevEnds = false; val jevCheck = prefs.jevCheck
-            val wantJev = jevEnds || jevCheck
+            // DIY: 断句可以在停顿处问 Jev；译文检查可以走 Jev 或自己的 LLM。两个开关各自独立。
+            val jevEnds = prefs.jevOn; val jevCheck = prefs.jevCheck
+            val checkJev = jevCheck && prefs.jevCheckJev
+            val wantJev = jevEnds || checkJev
             // a change from here on is seen by the snapshot below or rebuilt after the start
             val order = SetupOrder<ByokService, ByokTranslator.ThinkingOff?>(cancelLock).also { this.order = it }
             val v0 = order.version()
@@ -233,7 +237,8 @@ class CaptionSession(private val host: SessionHost) {
                 else SessionLog(SessionLog.dir(host.logRoot), onFail = { host.logWarn("session log: $it"); logWarned = true; main.post { refresh() } })
             log = sl
             sl?.write(mapOf("ev" to "session_start", "app" to host.appVersion,
-                "jev_requested" to jevEnds, "jev_ends" to jevEnds, "jev_check" to jevCheck, "final_only" to prefs.finalOnly,
+                "jev_requested" to wantJev, "jev_ends" to jevEnds, "jev_check" to jevCheck,
+                "jev_check_jev" to checkJev, "final_only" to prefs.finalOnly,
                 "mt_engine" to "byok",
                 "load_ms" to (t2 - t0)) + host.deviceInfo(s0.byok?.url) + s0.log())
 
@@ -343,24 +348,34 @@ class CaptionSession(private val host: SessionHost) {
             fun make(s: Snap, version: Int, wait: Boolean): Built? {
                 val notices = mutableListOf<String>()
                 val (mt, used, ev) = byok(s, version, wait, notices) ?: return null
-                // DIY: 译文检查用用户自己的 LLM API。填了单独地址或 key 就用那一套，
-                // 否则复用翻译的服务（只换模型 ID）。没填校验模型就不检查，字幕照常显示。
-                val judge: Judge? = if (s.judgeModel.isNotEmpty()) {
-                    val js = when {
-                        s.judgeUrl.isNotEmpty() || s.judgeKey != null -> ByokService(
-                            ByokTranslator.chatUrl(s.judgeUrl.ifEmpty { used.url }).second ?: used.url,
-                            s.judgeModel,
-                            s.judgeKey ?: used.key,
-                            used.userAgent,
-                            used.headers,
-                        )
-                        s.judgeModel == used.model -> used
-                        else -> used.copy(model = s.judgeModel)
+                // DIY: 断句和译文检查是两个独立开关，可以各用各的服务：
+                // Jev 走免 key 的 OpenCode Zen；检查也可以继续用用户自己的 LLM API
+                // （填了单独地址或 key 就用那一套，否则复用翻译的服务、只换模型 ID）。
+                val jev: Jev? = if (wantJev && s.jevKey != null) Jev(s.provider, s.jevKey, source = s.source, target = s.target) else null
+                val endsJudge: Judge? = if (jevEnds) jev else null
+                val judge: Judge? = when {
+                    !jevCheck -> null
+                    checkJev -> jev
+                    s.judgeModel.isNotEmpty() -> {
+                        val js = when {
+                            s.judgeUrl.isNotEmpty() || s.judgeKey != null -> ByokService(
+                                ByokTranslator.chatUrl(s.judgeUrl.ifEmpty { used.url }).second ?: used.url,
+                                s.judgeModel,
+                                s.judgeKey ?: used.key,
+                                used.userAgent,
+                                used.headers,
+                            )
+                            s.judgeModel == used.model -> used
+                            else -> used.copy(model = s.judgeModel)
+                        }
+                        ByokJudge(ByokTranslator(js, ByokJudge.SYSTEM, mt.thinkingOff, maxTokens = 48))
                     }
-                    ByokJudge(ByokTranslator(js, ByokJudge.SYSTEM, mt.thinkingOff, maxTokens = 48))
-                } else null
-                if (wantJev && judge == null) notices += "⚠ 译文检查没有生效：设置里没填校验模型"
-                return Built(Setup(mt, s.scene, s.source, s.target, judge, s.dedupe, s.contextN, version),
+                    else -> null
+                }
+                val noJev = listOfNotNull("智能断句".takeIf { jevEnds && jev == null }, "译文检查".takeIf { checkJev && jev == null })
+                if (noJev.isNotEmpty()) notices += "⚠ 所选 Jev 服务需要 key：${noJev.joinToString("、")}没有生效"
+                if (jevCheck && !checkJev && judge == null) notices += "⚠ 译文检查没有生效：设置里没填校验模型"
+                return Built(Setup(mt, s.scene, s.source, s.target, judge, endsJudge, s.dedupe, s.contextN, version),
                     notices.joinToString("  ·  "), used, ev)
             }
             /** Log a built setup that is now in use: its BYOK details, and [change] = also as a config_change of [s]. */
@@ -387,10 +402,10 @@ class CaptionSession(private val host: SessionHost) {
             val first = built.setup
             notice = built.notice
             inUse = built.byok
-            jevEndsOn = jevEnds; jevCheckOn = jevCheck
+            jevEndsOn = jevEnds; jevCheckOn = checkJev
             // the services really in use (BYOK: the one its probe accepted, not a newly saved one still probed)
             var mtId = built.byok; var jevId = firstSnap.jevKey?.let { firstSnap.provider.name + "\n" + it }
-            first.judge.let { j -> main.post { activeJudge = j; refresh() } }
+            (first.endsJudge ?: first.judge).let { j -> main.post { activeJudge = j; refresh() } }
             // the settings in use are not the ones session_start logged: say so, like a change while running
             logUsed(built, firstSnap, change = firstSnap !== s0)
             val pl = Pipeline(
@@ -412,6 +427,7 @@ class CaptionSession(private val host: SessionHost) {
                 source = first.source,
                 target = first.target,
                 judge = first.judge,
+                endsJudge = first.endsJudge,
                 judgeEnds = jevEnds,
                 checkTranslations = jevCheck,
                 dedupeJoin = first.dedupeJoin,
@@ -450,7 +466,7 @@ class CaptionSession(private val host: SessionHost) {
                     // switch is queued on the main thread before the new setup can produce any result
                     val m = b.byok; val j = s.jevKey?.let { s.provider.name + "\n" + it }
                     val mtNew = m != mtId; val jevNew = j != jevId
-                    val judge = b.setup.judge
+                    val judge = b.setup.endsJudge ?: b.setup.judge
                     val activate = Runnable {
                         activeJudge = judge
                         if (mtNew) { mtFrom = v; mtState = null }

@@ -108,7 +108,7 @@ Simul Subtitle builds on these open-source projects:
 - **[ReazonSpeech](https://github.com/reazon-research/ReazonSpeech)**: Japanese and English speech recognition ([reazonspeech-k2-v2-ja-en](https://huggingface.co/csukuangfj/reazonspeech-k2-v2-ja-en) exported for sherpa-onnx).
 - **[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)**: On-device speech recognition and voice activity detection runtime ([Silero VAD](https://github.com/snakers4/silero-vad)).
 
-The optional **Smart Sentence Segmentation** and **Translation Verification** features use **[TypeSafe Jev](https://typesafe.ai)**—a closed-source commercial cloud service for structured decisions (disabled by default; billed at ~$0.04 per hour of speech when using a paid endpoint; see [docs/jev.md](docs/jev.md)).
+The optional **Smart Sentence Segmentation** and **Translation Verification** features can use **[Jev](https://typesafe.ai)** through the keyless free OpenCode Zen endpoint (off by default), or your own OpenAI-compatible LLM for verification (see [docs/jev.md](docs/jev.md)).
 
 ---
 

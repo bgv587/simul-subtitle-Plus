@@ -769,7 +769,7 @@ class MainActivity : Activity() {
         root.removeAllViews()
         val running = CaptionService.running
         translateRunning = running
-        if (running) root.addView(note("字幕正在运行：内容类型、结合上文、去掉重复的字、LLM API（切换配置或点保存后）和 Jev 在线模型服务、key 改了从下一句开始生效；智能断句和检查译文从下次开始字幕时生效；显示方式马上生效。"), LinearLayout.LayoutParams(
+        if (running) root.addView(note("字幕正在运行：内容类型、结合上文、去掉重复的字、LLM API（切换配置或点保存后）从下一句开始生效；智能断句和检查译文（含是否走 Jev）从下次开始字幕时生效；显示方式马上生效。"), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (12 * dpx).toInt() })
 
         // -- the LLM API the captions are translated with
@@ -837,6 +837,8 @@ class MainActivity : Activity() {
         box.addView(segPause); box.addView(pauseSlider)
         box.addView(segMax); box.addView(maxSlider)
         box.addView(hint("停顿多久算一句话说完了、一句话最长多长。调小出字更快但句子更碎（太碎识别会变差）；调大句子更完整但更晚出现。下次开始字幕时生效。"))
+        switchRow(box, "智能断句（Jev）", "在停顿处把刚识别的话发给 Jev 免费云端模型，问「这句说完了吗」：没说完就等下一段接上，少把一句话切成两半。关掉只按停顿切。需要联网；被限流时自动改按停顿切。下次开始字幕时生效。",
+            prefs.jevOn) { prefs.jevOn = it }
 
         // -- how captions appear
         box = group(root, "字幕怎么出现")
@@ -848,7 +850,7 @@ class MainActivity : Activity() {
         switchRow(box, "去掉重复的字", "一句话分段识别时，接口处偶尔会把同一段话识别两遍。打开后自动去掉多出来的那一遍；如果说话人真的重复说了，也可能被去掉。",
             prefs.dedupeJoin) { prefs.dedupeJoin = it }
 
-        // -- 译文检查（用你自己的 LLM API；Jev 已彻底移除）
+        // -- 译文检查（自己的 LLM API 或内置的免费 Jev）
         box = group(root, "译文检查（可选，需要联网）")
         box.addView(hint("建议只在用 qwen-mt 这类「单句翻译」模型时才打开：它看不到上下文，容易把否定或转折翻反、把比喻按字面直译，逐句复检能兜住一部分。用 qwen-flash 这类通用模型时通常不必开——每句会多一次请求，延迟约 +0.4 秒，费用也会跟着涨。"))
         val checkSwitch = switchRow(box, "检查译文", "每句译文出来后由模型再看一遍：有没有把意思译反、漏了否定、把比喻按字面直译。发现问题就带着提示重新翻译这一句。", prefs.jevCheck) {}
@@ -858,6 +860,12 @@ class MainActivity : Activity() {
             checkBox.removeAllViews()
             checkBox.visibility = if (prefs.jevCheck) View.VISIBLE else View.GONE
             if (!prefs.jevCheck) return
+            switchRow(checkBox, "用 Jev 云端检查（免 key）", "用内置的免费 Jev（OpenCode Zen）检查，不用填模型、地址和 key。被限流或断网时这句译文照常显示，只是不检查。",
+                prefs.jevCheckJev) { prefs.jevCheckJev = it; renderCheck() }
+            if (prefs.jevCheckJev) {
+                checkBox.addView(hint("每句会多一次请求（只发送识别出的文字和译文，不发送声音）。下次开始字幕时生效。"))
+                return
+            }
             checkBox.addView(label("校验模型"))
             val modelInput = android.widget.EditText(this).apply {
                 hint = "例如 qwen-flash"

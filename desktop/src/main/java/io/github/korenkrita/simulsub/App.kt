@@ -596,7 +596,7 @@ private val byokResult = mutableStateOf<String?>(null)
 @Composable
 private fun TranslateTab() {
     val running by CaptionService.runningState
-    if (running) Note("字幕正在运行：内容类型、结合上文、去掉重复的字、LLM API（切换配置或点保存后）和 Jev 在线模型服务、key 改了从下一句开始生效；智能断句和检查译文从下次开始字幕时生效；显示方式马上生效。")
+    if (running) Note("字幕正在运行：内容类型、结合上文、去掉重复的字、LLM API（切换配置或点保存后）从下一句开始生效；智能断句和检查译文（含是否走 Jev）从下次开始字幕时生效；显示方式马上生效。")
     Group("LLM API") { Byok(running); ByokAdvanced() }
     Group("内容") {
         Label("内容类型")
@@ -649,11 +649,19 @@ private fun TranslateTab() {
             prefs.maxUtteranceSetting = maxes[it]
         }
         Hint("调小出字更快但句子更碎（太碎识别会变差）；调大句子更完整但更晚出现。下次开始字幕时生效。")
+        SwitchRow("智能断句（Jev）", "在停顿处把刚识别的话发给 Jev 免费云端模型，问「这句说完了吗」：没说完就等下一段接上，少把一句话切成两半。关掉只按停顿切。需要联网；被限流时自动改按停顿切。下次开始字幕时生效。",
+            prefs.jevOn) { prefs.jevOn = it }
     }
     Group("译文检查（可选，需要联网）") {
         Hint("建议只在用 qwen-mt 这类单句翻译模型时才打开：它看不到上下文，容易把否定或转折翻反。用 qwen-flash 这类通用模型时通常不必开——每句会多一次请求，延迟约 +0.4 秒。")
         SwitchRow("检查译文", "每句译文出来后由模型再看一遍：有没有把意思译反、漏了否定、把比喻按字面直译。发现问题就带着提示重新翻译这一句。", prefs.jevCheck) { prefs.jevCheck = it }
         if (prefs.jevCheck) {
+            SwitchRow("用 Jev 云端检查（免 key）", "用内置的免费 Jev（OpenCode Zen）检查，不用填模型、地址和 key。被限流或断网时这句译文照常显示，只是不检查。", prefs.jevCheckJev) { prefs.jevCheckJev = it }
+        }
+        if (prefs.jevCheck && prefs.jevCheckJev) {
+            Hint("每句会多一次请求（只发送识别出的文字和译文，不发送声音）；免费服务可能限流。下次开始字幕时生效。")
+        }
+        if (prefs.jevCheck && !prefs.jevCheckJev) {
             var model by remember { mutableStateOf(prefs.judgeModelSetting) }
             var url by remember { mutableStateOf(prefs.judgeUrlSetting) }
             var key by remember { mutableStateOf("") }

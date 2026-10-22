@@ -72,11 +72,7 @@ jobs:
           gh release create plus-latest --title "最新构建" --notes "首次创建" --latest >/dev/null 2>&1 || true
           mkdir -p dist && cp "$ZIP" "dist/$WINNAME"
           gh release upload plus-latest "dist/$WINNAME" --clobber
-          # 只留这一版：以前的无版本号包、更早的版本包都删掉，滚动 release 不会越攒越大
-          gh release view plus-latest --json assets -q '.assets[].name' > /tmp/assets.txt || true
-          grep -E '^Windows-SimulSub(-Plus[0-9]+)?-x64\.zip$' /tmp/assets.txt | grep -v "^$WINNAME$" | while read -r a; do
-            gh release delete-asset plus-latest "$a" --yes && echo "已删除旧包 $a"
-          done || true
+          # 旧包一律留着：滚动 release 只覆盖同名文件，以前版本的 zip 仍可下载
           echo "已挂到 plus-latest 的 Assets"
           # latest 必须留在这条滚动 release 上，否则应用内更新会读到别的版本页
           gh release edit plus-latest --latest
