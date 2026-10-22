@@ -152,8 +152,19 @@ data class Target(val lang: Lang?, val name: String) {
     }
 }
 
-/** A model may still emit a think block or a stray "</think>"; it is never shown. */
-fun stripThink(s: String): String = s.replace(Regex("(?s)<think>.*?</think>"), "").replace("</think>", "").replace("<think>", "").trim()
+/**
+ * A model may still emit a think block or a stray tag; it is never shown. Gemma 4 marks its thoughts as a channel
+ * (`<|channel>thought…<channel|>`), and a first chunk may hold an empty one even with thinking at its minimum.
+ */
+fun stripThink(s: String): String = s.replace(THINK_BLOCK, "").replace(THINK_TAG, "").trim()
+private val THINK_BLOCK = Regex("(?s)<think>.*?</think>|<\\|channel>thought.*?<channel\\|>")
+private val THINK_TAG = Regex("</?think>|<\\|channel>thought|<channel\\|>")
+/** Reasoning in the text: a think block, or a Gemma thought channel with something in it (an empty one is no thought). */
+fun hasThought(s: String): Boolean = s.contains("<think>") ||
+    Regex("(?s)<\\|channel>thought(.*?)(<channel\\|>|$)").findAll(s).any { it.groupValues[1].isNotBlank() }
+/** Reasoning that never closed: the model ran out of tokens or time while thinking, so the text is no answer. */
+fun openThought(s: String): Boolean = s.lastIndexOf("<think>") > s.lastIndexOf("</think>") ||
+    s.lastIndexOf("<|channel>thought") > s.lastIndexOf("<channel|>")
 
 /**
  * DIY: 译文里成串的假名（两个以上），平假名和片假名都算。中文译文里本来不该出现，出现了说明这个词没翻——
@@ -333,7 +344,7 @@ object SseStream {
                 if ((reasoningTokens ?: 0) > 0) thinking = true
             }
         }
-        if (text.contains("<think>")) thinking = true
+        if (hasThought(text.toString())) thinking = true
         // DIY: 百炼最后可能有、也可能没有明确的 stop 帧（finish_reason 一直是字符串 "null"）。
         // 已经拿到内容且从未见过 finish 时，按正常结束处理——否则会判成 stop='f'，整句被当成失败。
         if (!done && missingDoneIsEnd && text.isNotEmpty() && finish == null) { done = true; finish = "stop" }
@@ -640,12 +651,14 @@ class ByokTranslator(
 
     private fun call(user: String, v: ThinkingOff?, firstMs: Long): MtResult {
         val qwenMt = service.qwenMt
+        // the same note every sentence: the request prefix has to stay cacheable
+        val sys = system + (v?.systemNote?.let { "\n\n$it" } ?: "")
         /** DIY: 一次完整请求。qwen-mt 的术语参数若被判非法，[withTerms] 为 false 可重发一版不带术语的。 */
         fun attempt(withTerms: Boolean, extra: String = ""): Pair<HttpResult, MtResult> {
             val prompt = if (extra.isEmpty()) user else user + extra
             val body = if (qwenMt) qwenMtBody(user, withTerms) else Json.encode(mapOf(
                 "model" to model,
-                "messages" to listOf(mapOf("role" to "system", "content" to system), mapOf("role" to "user", "content" to prompt)),
+                "messages" to listOf(mapOf("role" to "system", "content" to sys), mapOf("role" to "user", "content" to prompt)),
                 "temperature" to 0, "max_tokens" to maxTokens, "stream" to true,
                 "stream_options" to mapOf("include_usage" to true),
             ) + (v?.params ?: emptyMap()))
@@ -667,7 +680,7 @@ class ByokTranslator(
         // DIY: 术语被 API 拒绝时去掉术语重发一次。宁可这次没术语，也不能整句翻不出来。
         if (termsSent && r.status == 400) { val again = attempt(false); r = again.first; res = again.second }
         // reasoning that never closed (the model ran out of tokens while thinking) is not a translation
-        val open = res.raw.lastIndexOf("<think>") > res.raw.lastIndexOf("</think>")
+        val open = openThought(res.raw)
         // what a caption may show: reasoning removed until nothing changes, then the key masked until it is gone, so
         // that MtResult.text (which strips once more) can no longer join anything into the key
         var clean = if (open) "" else res.raw
@@ -705,7 +718,7 @@ class ByokTranslator(
         return MtResult(clean, if (open) 'f' else res.stop, res.promptTokens,
             res.outputTokens, firstContentMs = res.firstContentMs, request = res.request, response = null, http = res.http,
             error = if (open) (if (res.stop == 'l' || res.stop == 'e') "unfinished thinking" else res.error ?: "unfinished thinking") else (diag ?: res.error),
-            thinking = res.thinking || open || res.raw.contains("<think>"), cachedTokens = res.cachedTokens)
+            thinking = res.thinking || open || hasThought(res.raw), cachedTokens = res.cachedTokens)
     }
 
     /**
@@ -765,17 +778,21 @@ class ByokTranslator(
         val choice = (choices?.firstOrNull() as? Map<*, *>) ?: return false
         val part = (choice["delta"] as? Map<*, *>) ?: (choice["message"] as? Map<*, *>)
         seen.append(part?.get("content") as? String ?: return false)
-        var s = seen.toString().replace(Regex("(?s)<think>.*?</think>"), "").replace(Regex("(?s)<think>.*"), "")
-        // "<", "<thi", "</thin" … at the end may be the start of a tag still arriving
+        var s = seen.toString().replace(Regex("(?s)<think>.*?</think>|<\\|channel>thought.*?<channel\\|>"), "")
+            .replace(Regex("(?s)(<think>|<\\|channel>thought).*"), "")
+        // "<", "<thi", "<|chan", "</thin" … at the end may be the start of a tag still arriving
         val lt = s.lastIndexOf('<')
-        if (lt >= 0 && ("<think>".startsWith(s.substring(lt)) || "</think>".startsWith(s.substring(lt)))) s = s.substring(0, lt)
-        return s.replace("</think>", "").isNotBlank()
+        if (lt >= 0 && TAGS.any { it.startsWith(s.substring(lt)) }) s = s.substring(0, lt)
+        return s.replace("</think>", "").replace("<channel|>", "").isNotBlank()
     }
 
     override fun cancel() = calls.cancel()
 
-    /** One way to ask for no thinking; [params] are added to the request body. */
-    class ThinkingOff(val name: String, val label: String, val params: Map<String, Any>)
+    /**
+     * One way to ask for no thinking; [params] are added to the request body and [systemNote] (when set) to the end of
+     * the system message, the same for every sentence of a session, so the prefix stays cacheable.
+     */
+    class ThinkingOff(val name: String, val label: String, val params: Map<String, Any>, val systemNote: String? = null)
 
     /** One probe step: which variant, what came back. */
     class Step(val variant: ThinkingOff, val result: MtResult)
@@ -827,6 +844,8 @@ class ByokTranslator(
 
     companion object {
         const val PROBE_TEXT = "こんにちは、今日もよろしくお願いします。"
+        /** think tags, for a tag split over stream chunks */
+        private val TAGS = listOf("<think>", "</think>", "<|channel>thought", "<channel|>")
         /** Stored instead of a variant when the service answered but every switch still thought: do not probe again. */
         const val NONE_WORKED = "-"
         /** Sent when the user set none: "SimulSub/<version>", set by each app at start. */
@@ -867,6 +886,11 @@ class ByokTranslator(
             ThinkingOff("reasoning", "reasoning: enabled false", mapOf("reasoning" to mapOf("enabled" to false))),
             // OpenAI-style reasoning models and Gemini's OpenAI endpoint
             ThinkingOff("effort", "reasoning_effort: none", mapOf("reasoning_effort" to "none")),
+            // Gemma 4 (e.g. on Gemini's OpenAI endpoint): no "none", only minimal or high, and minimal still lets it think
+            // now and then, so the system message asks it not to as well
+            ThinkingOff("minimal", "reasoning_effort: minimal + 提示词", mapOf("reasoning_effort" to "minimal"),
+                "CRITICAL: Do not use <|think|>, do not output any reasoning steps, and do not think. " +
+                    "Directly output the translation result only.\n直接输出翻译结果，禁止输出任何思考过程与推理说明。"),
             // the model may not think at all: nothing extra
             ThinkingOff("none", "不加参数", emptyMap()),
         )
