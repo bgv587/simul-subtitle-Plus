@@ -1,7 +1,5 @@
-# 同声传译（diy版）
-
-个人自用的实时字幕，**安卓 + Windows 双端**，两端功能一致、同一次推送一起构建。
-基于 [KorenKrita/simul-subtitle](https://github.com/KorenKrita/simul-subtitle) 修改。
+# 同声传译（Plus版）
+Plus版，基于 J1nxi-youmi/simul-subtitle-diy
 
 ## 下载
 
@@ -68,35 +66,12 @@ Windows 上因为 CPU 更强，实测端到端中位 **554 ms**（识别 55 ms�
 - 选「粤语」时识别正常，但翻译的源语言会退回「自动」（交给翻译模型自己判断，效果不受影响）
 - Windows 版没有应用内更新；`sysaudio` 抓的是默认输出设备，正在用的耳机/音箱如果不是默认设备可能抓不到声音
 
-## 说明
 
-- 这是我自己用的改版，**不承诺修问题、不接功能请求**；拿去用没问题，出了问题我不兜底
-- 字幕是机器翻译出来的，会有错。**别用在需要准确信息的地方**（看病、法律、交易这类）
-- API 费用、额度、账号风险都是你自己的，和原作者、以及文中提到的模型厂商都没关系
-- 再分发请保留 [LICENSE](LICENSE) 和致谢，别说成自己的原创
-
-## 构建
-
-推送到 `main`，两条流水线同时跑，各出一个包：
-
-| 工作流 | 产物 | 发布位置 |
-|---|---|---|
-| `android.yml` | `app-debug.apk` | 滚动 tag `plus-latest`（应用内更新读它）|
-| `windows.yml` | `Windows-SimulSub-x64.zip`（挂在同一个 `plus-latest` 的 Assets 里） | 滚动 tag `plus-latest` |
-
-- 两端功能改动请同时改到位，否则同步更新没意义
-- 安卓签名固定在 Actions 缓存里，覆盖安装不丢配置
-- 版本名是 `Plus` + `versionCode`（如 `Plus1002`），`versionCode` 取 `1000 + 本仓库的构建序号`，应用内更新靠它判断有没有新版本
-- 每个版本都会打个 tag（`vPlusNNNN`），但**只有明确要求的版本才留 APK**：
-  - 提交信息**末尾**带 `[keep]`，或
-  - 手动 Run workflow 时勾选「保留」
-  否则只更新滚动 release，磁盘不会一直涨
-- `app/build.gradle.kts` 里只能有**一处** `versionName = "..."` 这种写法——桌面打包脚本用它取版本号
 - 每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 致谢
 
-感谢 [KorenKrita](https://github.com/KorenKrita) 的 [simul-subtitle](https://github.com/KorenKrita/simul-subtitle)。
+感谢 [KorenKrita](https://github.com/KorenKrita) 的 [simul-subtitle](https://github.com/KorenKrita/simul-subtitle)。J1nxi-youmi的https://github.com/J1nxi-youmi/simul-subtitle-diy。
 
 悬浮字幕、音频内录、VAD 断句、草稿/定稿字幕、BYOK 翻译、术语与场景、桌面端……这套东西的骨架全是他一个人搭的。没有他的工作，这个 diy 版根本不存在——我只是在他的成果上换了自己更习惯的识别模型，改了几处交互和译文检查的实现。
 
