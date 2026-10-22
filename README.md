@@ -1,5 +1,5 @@
 # 同声传译（Plus版）
-Plus版，基于 J1nxi-youmi/simul-subtitle-diy
+Plus版，基于 [J1nxi-youmi/simul-subtitle-diy](https://github.com/J1nxi-youmi/simul-subtitle-diy)
 
 ## 下载
 
@@ -24,6 +24,8 @@ Plus版，基于 J1nxi-youmi/simul-subtitle-diy
 
 - **识别**：SenseVoice，中/英/日/韩/粤一部模型全认，可锁语种也可自动判断
 - **翻译**：填自己的 OpenAI 兼容接口。Qwen-MT 走原生协议，语言和术语用结构化参数传，不塞提示词
+- **免费翻译**：设置里一键切到「B站 Index 免费」（`index-translate.bilibili.com` + `Index-Translate-35B-A3B`），不用 key、不用注册，自动带上必需的 User-Agent。没预算或只想先试试就用它，效果不如付费模型
+- **会议记录**：桌面端按「开始字幕 → 停止字幕」存成一段，本次运行留最近 50 段，可导出 Markdown / 纯文本 / SRT / VTT / JSON（暂停再继续仍算同一段）
 - **术语**：只把这一句里真的出现的词发过去，没出现的不发（否则模型会硬塞进译文）
 - **残留假名**：译文里还剩成串平假名或片假名时（如「别说是アルバイト」「…像廉んかちゃん那样」），自动带提示重译一次
 - **译文检查**：可选，用自己的 LLM 逐句复核，发现译反、漏否定、直译比喻就带提示重译；可单独配地址和 key
@@ -42,6 +44,7 @@ Plus版，基于 J1nxi-youmi/simul-subtitle-diy
 2. **只需要填 API Key**：设置 → 翻译 → LLM API → 粘贴 key → 点「测试连接」
    - 地址（`https://dashscope.aliyuncs.com/compatible-mode/v1`）和模型（`qwen-flash`）已经填好了
    - 用别的服务商时再改这两项
+   - 一个 key 都不想填：点同一页的「B站 Index 免费」，直接用它翻译
 3. 选「识别语种」（默认日语）→ 回首页点「开始字幕」→ 选要听的 App / 直接播放
 4. 安卓更新：设置 → 页面 → 检查更新
 
