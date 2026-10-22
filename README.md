@@ -1,3 +1,5 @@
+Plus版，基于 J1nxi-youmi/simul-subtitle-diy
+
 # 同声传译（diy版）
 
 个人自用的实时字幕，**安卓 + Windows 双端**，两端功能一致、同一次推送一起构建。
