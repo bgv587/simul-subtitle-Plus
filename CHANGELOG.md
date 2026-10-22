@@ -3,12 +3,13 @@
 `versionCode` = **1000 + GitHub Actions 构建序号**，版本名是 `Plus` + `versionCode`（如 `Plus1002`；`Plus1002` 之前的版本叫 `DIY1001`、`DIY1064` 等），只有构建成功并发布到 Releases 的版本才有编号。
 每个版本都打了 git tag（如 `vPlus1002`；更早的是 `vDIYNNNN`，`vDIY1033` 之前仍是 `v1.0.7-diy.NNNN`），可以 `git checkout` 出当时的代码。
 本仓库（`bgv587/simul-subtitle-Plus`）的构建序号从 1 开始，和上游 fork 的同号版本不是同一个包；`DIY1066` 及更早是上游 fork 的记录。
+序号取的是**触发那次构建的工作流的运行号**，所以会跳号：在错的提交上触发后取消、或构建失败的运行照样占号（如 `Plus1004` 从未出包，是在修复提交之前的那个提交上误触发的两条运行，取消后重跑成了 `Plus1005`）。
 
 按时间倒序。标注：**加** = 新增功能，**改** = 行为或界面调整，**删** = 移除，**修** = 修 bug。
 
 ---
 
-## Plus1004 — 10-22 12:55
+## Plus1005 — 10-22 13:20
 - **修** 桌面端不再把版本显示成「Plus」：exe 的「关于」页、会话日志和「检查更新」比较用的版本号，之前是从 `app/build.gradle.kts` 正则取的基础值 `Plus` / `versionCode 27`（CI 的覆盖写法故意不带引号、正则读不到），打包跑从来不传 CI 变量所以一直读到默认值。现在 `windows.yml` 和安卓用同一个算法导出 `CI_VERSION_CODE`（`1000 + 运行序号`），写进包内 `SimulSub/app/SimulSub.cfg` 的 `-Dsimulsub.version` / `-Dsimulsub.versionCode`，zip 文件名一起用上；从源码直接跑仍然回退到 `Plus`
 - **改** 界面名称从「同声传译（diy版）」改成「同声传译（Plus版）」：桌面主窗标题、关于页、有新版本弹窗、字幕窗标题，以及安卓的应用名（覆盖安装不影响配置）
 - **改** README 合并 GitHub 网页上的改动（改名 Plus 版、致谢加 J1nxi-youmi 一手），并补上本 fork 的三项特点：暂停 / 继续、B站 Index 免费翻译、会议记录按开始/停止分段
