@@ -70,7 +70,7 @@ Windows 上因为 CPU 更强，实测端到端中位 **554 ms**（识别 55 ms�
 
 ## 致谢
 
-感谢 [KorenKrita](https://github.com/KorenKrita) 的 [simul-subtitle](https://github.com/KorenKrita/simul-subtitle)。
+感谢 [KorenKrita](https://github.com/KorenKrita) 的 [simul-subtitle](https://github.com/KorenKrita/simul-subtitle)。J1nxi-youmi的simul-subtitle-diy。
 
 悬浮字幕、音频内录、VAD 断句、草稿/定稿字幕、BYOK 翻译、术语与场景、桌面端……这套东西的骨架全是他一个人搭的。没有他的工作，这个 diy 版根本不存在——我只是在他的成果上换了自己更习惯的识别模型，改了几处交互和译文检查的实现。
 
