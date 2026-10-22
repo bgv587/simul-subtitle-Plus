@@ -36,7 +36,8 @@ CL="$(command -v cl)" || { echo "cl.exe not on PATH: run from a Developer prompt
 
 # 4. the app folder, zipped under the name the user sees
 cd "$ROOT"
-VER="$(sed -nE 's/.*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)"
+VER="${CI_VERSION_CODE:+Plus$CI_VERSION_CODE}"
+[ -n "$VER" ] || VER="$(sed -nE 's/.*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)"
 ./gradlew -q :desktop:createDistributable -Psimulsub.dist="$(cygpath -w "$W")"
 APP=desktop/build/compose/binaries/main/app/SimulSub
 [ -f "$APP/SimulSub.exe" ] && [ -f "$APP/app/resources/sysaudio.exe" ] && [ -f "$APP/app/resources/sherpa-onnx-jni.dll" ] \

@@ -141,7 +141,7 @@ fun app() = application {
     if (mainOpen) {
         val state = rememberWindowState(size = DpSize(520.dp, 820.dp))
         // closing the window keeps the app (and its captions) in the menu bar
-        Window(onCloseRequest = { mainOpen = false }, state = state, title = "同声传译（diy版）", icon = painterResource("icon.png")) {
+        Window(onCloseRequest = { mainOpen = false }, state = state, title = "同声传译（Plus版）", icon = painterResource("icon.png")) {
             // the title bar is the system's: follow the page colour, not just the system's own setting
             Themed(dark) {
                 Box(Modifier.fillMaxSize().background(C.bg)) { MainScreen(startError) { startError = it } }
@@ -977,7 +977,7 @@ private fun LogsTab() {
 @Composable
 private fun AboutSection() {
     Group("关于") {
-        Text("同声传译（diy版）  版本 $APP_VERSION", fontSize = 15.sp, modifier = Modifier.padding(vertical = 6.dp))
+        Text("同声传译（Plus版）  版本 $APP_VERSION", fontSize = 15.sp, modifier = Modifier.padding(vertical = 6.dp))
         Divider()
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Btn(if (update.value is Update.Checking) "检查中…" else "检查更新", enabled = update.value !is Update.Checking,
@@ -1077,7 +1077,7 @@ private fun ApplicationScope.AutoUpdateCheck() {
     LaunchedEffect(Unit) { if (prefs.autoUpdate && APP_VERSION_CODE > 0) { delay(3_000); checkNow(manual = false) } }
     val r = offered.value ?: return
     val dark = when (prefs.theme) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
-    Window(onCloseRequest = { offered.value = null }, title = "同声传译（diy版）有新版本", state = rememberWindowState(size = DpSize(440.dp, 360.dp))) {
+    Window(onCloseRequest = { offered.value = null }, title = "同声传译（Plus版）有新版本", state = rememberWindowState(size = DpSize(440.dp, 360.dp))) {
         Themed(dark) {
             Column(Modifier.fillMaxSize().background(C.bg).padding(18.dp).verticalScroll(rememberScrollState())) {
                 UpdateBox(r)

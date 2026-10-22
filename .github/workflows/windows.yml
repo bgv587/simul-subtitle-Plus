@@ -29,6 +29,9 @@ jobs:
             models
             tools/win-app/build/*.jar
           key: win-deps-v2-${{ hashFiles('setup.sh', 'tools/win-app/build.sh') }}
+      # 版本名和安卓用同一个算法（1000 + 本工作流的运行序号；两条流水线成对触发，序号一致），
+      # 桌面端 exe 的「关于」和检查更新都读它
+      - run: echo "CI_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       # 把这次构建的提交号写进包内资源：桌面端「检查更新」用它和线上清单比对，
       # 相同就说明已是最新，不再提示更新（桌面端没有应用内更新，只能靠这个判断）。
       - run: |

@@ -65,6 +65,8 @@ export JAVA_HOME=<jdk17> ANDROID_HOME=~/Library/Android/sdk
 
 Windows 版仅构建 64 位（`x64`）绿色免安装压缩包。通过 GitHub Actions 的 Windows runner 构建：推送 `windows` 分支或在 Actions 页面手动触发 `.github/workflows/windows.yml`，即可执行 `tools/win-app/build.sh`，生成 `SimulSub-<versionName>-windows-x64.zip`（Actions Artifact 为解压状态的 `SimulSub/` 目录）。
 
+版本号两端同一个算法：工作流导出 `CI_VERSION_CODE` = `1000 + 本工作流运行序号`，桌面端读它写进包内 `SimulSub/app/SimulSub.cfg` 的 `-Dsimulsub.version` / `-Dsimulsub.versionCode`（决定「关于」页、会话日志里的版本和「检查更新」的比较值），`build.sh` 也用它命名 zip。不带该环境变量从源码直接跑时，两端都回退到 `app/build.gradle.kts` 里的字面量（`Plus` / 27）；两条流水线成对触发时运行序号一致，所以桌面包的版本名和同一页的 APK 相同。
+
 #### `tools/win-app/build.sh` 构建细节
 
 在 Windows Git Bash 中运行，依赖 JDK 17 与 MSVC `cl.exe`（Developer Command Prompt 或 CI 中的 `ilammy/msvc-dev-cmd`）：

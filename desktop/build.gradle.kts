@@ -10,10 +10,15 @@ plugins {
 
 kotlin { jvmToolchain(17) }
 
-// the Android app's version: one release carries the APK and the zip
+// the Android app's version: one release carries the APK and the zip.
+// In the repo the line CI overrides is `versionName = plainName + ciCode`, which the quoted-value regexes below
+// deliberately do not match — so a build from the working tree says "Plus" (27). windows.yml exports the same
+// CI_VERSION_CODE the android workflow uses (1000 + its own run number, and the two are dispatched in pairs),
+// which is the only place the packaged exe learns its real version.
+val ciCode = System.getenv("CI_VERSION_CODE")?.toIntOrNull()
 val appGradle = rootProject.file("app/build.gradle.kts").readText()
-val appVersion = Regex("versionName = \"([^\"]+)\"").find(appGradle)!!.groupValues[1]
-val appCode = Regex("versionCode = (\\d+)").find(appGradle)!!.groupValues[1]
+val appVersion = ciCode?.let { "Plus$it" } ?: Regex("versionName = \"([^\"]+)\"").find(appGradle)!!.groupValues[1]
+val appCode = ciCode ?: Regex("versionCode = (\\d+)").find(appGradle)!!.groupValues[1].toInt()
 
 // tools/win-app's output: windows-x64 (the native libraries, sysaudio and the models) and sherpa-jvm.jar
 val winDist = rootProject.layout.projectDirectory.dir("tools/win-app/build/resources/windows-x64")
